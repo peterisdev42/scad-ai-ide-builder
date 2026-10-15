@@ -1,0 +1,13 @@
+[submodule "sources/openscad"]
+	path = sources/openscad
+	url = https://github.com/peterisdev42/openscad.git
+[submodule "sources/vscode"]
+	path = sources/vscode
+	url = https://github.com/peterisdev42/vscode.git
+	branch = release/1.142
+[submodule "sources/openscad-support-vscode"]
+	path = sources/openscad-support-vscode
+	url = https://github.com/peterisdev42/openscad-support-vscode.git
+[submodule "sources/vscode-openscad-preview"]
+	path = sources/vscode-openscad-preview
+	url = https://github.com/peterisdev42/vscode-openscad-preview.git
