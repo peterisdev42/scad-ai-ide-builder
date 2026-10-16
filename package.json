@@ -12,6 +12,9 @@
   "scripts": {
     "prepare:vscode": "bash scripts/prepare-vscode.sh",
     "dev:vscode": "bash scripts/dev-vscode.sh",
+    "dev:vscode:fresh": "bash scripts/dev-vscode.sh --fresh",
+    "reset:vscode": "node scripts/reset-vscode.mjs",
+    "dev:vscode:reset": "npm run reset:vscode && npm run dev:vscode",
     "watch:vscode": "cd sources/vscode && npm run watch",
     "build:extensions": "bash scripts/build-extensions.sh",
     "stage:extensions": "bash scripts/stage-extensions.sh .dev/stage/extensions"
