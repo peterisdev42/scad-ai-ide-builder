@@ -147,3 +147,13 @@ vite.config.ts.timestamp-*
 
 # Turbo Repo
 .turbo
+
+# Local development environment
+/.dev/
+
+# Build intermediates and artifacts
+/.build/
+
+# OS generated files
+.DS_Store
+Thumbs.db

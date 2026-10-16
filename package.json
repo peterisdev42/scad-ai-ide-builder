@@ -1,0 +1,29 @@
+{
+  "name": "scad-ai-ide-builder",
+  "version": "0.1.0",
+  "description": "Build and development tooling for SCAD AI IDE",
+  "private": true,
+  "license": "MIT",
+  "author": {
+    "name": "Peter",
+    "email": "peterisdev@proton.me",
+    "url": "https://github.com/peterisdev42"
+  },
+  "scripts": {
+    "prepare:vscode": "bash scripts/prepare-vscode.sh",
+    "dev:vscode": "bash scripts/dev-vscode.sh",
+    "watch:vscode": "cd sources/vscode && npm run watch"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/peterisdev42/scad-ai-ide-builder.git"
+  },
+  "bugs": {
+    "url": "https://github.com/peterisdev42/scad-ai-ide-builder/issues"
+  },
+  "homepage": "https://github.com/peterisdev42/scad-ai-ide-builder#readme",
+  "volta": {
+    "node": "24.18.0",
+    "npm": "11.16.0"
+  }
+}
