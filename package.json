@@ -12,7 +12,9 @@
   "scripts": {
     "prepare:vscode": "bash scripts/prepare-vscode.sh",
     "dev:vscode": "bash scripts/dev-vscode.sh",
-    "watch:vscode": "cd sources/vscode && npm run watch"
+    "watch:vscode": "cd sources/vscode && npm run watch",
+    "build:extensions": "bash scripts/build-extensions.sh",
+    "stage:extensions": "bash scripts/stage-extensions.sh .dev/stage/extensions"
   },
   "repository": {
     "type": "git",
@@ -25,5 +27,8 @@
   "volta": {
     "node": "24.18.0",
     "npm": "11.16.0"
+  },
+  "devDependencies": {
+    "@vscode/vsce": "^4.0.0"
   }
 }
