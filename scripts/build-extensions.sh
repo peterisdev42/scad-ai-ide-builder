@@ -6,6 +6,7 @@ set -euo pipefail
 #
 # Supported refs:
 #   submodule              Commit currently checked out in sources/<repo>
+#   working-tree           Local source files, including uncommitted changes
 #   branch:<name>          Latest commit on origin/<name>
 #   tag:<name>             Commit referenced by a tag
 #   commit:<sha>           An explicit, locally available commit
@@ -43,7 +44,7 @@ Options:
   --preview=<ref>   Version for vscode-openscad-preview
   -h, --help        Display this help
 
-Ref formats: submodule | branch:<name> | tag:<name> | commit:<sha>
+Ref formats: submodule | working-tree | branch:<name> | tag:<name> | commit:<sha>
 EOF
 }
 
@@ -90,7 +91,7 @@ resolve_ref() {
   local name
 
   case "$spec" in
-    submodule)
+    submodule|working-tree)
       git -C "$repo" rev-parse --verify 'HEAD^{commit}'
       ;;
     branch:*)
@@ -114,7 +115,7 @@ resolve_ref() {
       git -C "$repo" rev-parse --verify "$name^{commit}"
       ;;
     *)
-      fail "Invalid ref '$spec'. Use submodule, branch:..., tag:..., or commit:..."
+      fail "Invalid ref '$spec'. Use submodule, working-tree, branch:..., tag:..., or commit:..."
       ;;
   esac
 }
@@ -238,6 +239,12 @@ build_extension() {
   ACTIVE_WORKTREE="$worktree"
 
   git -C "$worktree" submodule update --init --recursive
+
+  if [[ "$ref" == "working-tree" ]]; then
+    echo "==> Copying local source changes for $repo_name"
+    rsync -a --delete --exclude='.git' --exclude='/node_modules' --exclude='/dist' \
+      "$repo/" "$worktree/"
+  fi
 
   if [[ "$repo_name" == "openscad-support-vscode" ]]; then
     fix_language_assets "$worktree"
