@@ -157,3 +157,6 @@ vite.config.ts.timestamp-*
 # OS generated files
 .DS_Store
 Thumbs.db
+
+**/.mini-wiki/
+**/wiki/
