@@ -1,16 +1,21 @@
-# OpenSCAD 2021.01 macOS 无头 CLI
+# OpenSCAD 2021.01 无头 CLI
 
-第一阶段只构建 macOS 两种原生架构：
+构建 macOS 和 Windows 的原生架构：
 
 | 目标 | Runner | 包格式 |
 | --- | --- | --- |
 | Intel x64 | `macos-15-intel` | `.tar.gz` |
 | Apple Silicon ARM64 | `macos-15` | `.tar.gz` |
 
-Linux 和 Windows 已从当前工作流移除，不参与构建或 Release 门禁。
+| Windows x64 | `windows-2022` | `.zip` |
+| Windows x86 | `windows-2022` | `.zip` |
+| Windows ARM64 | `windows-11-arm` | `.zip` |
+
+Linux 暂不参与构建。Windows 使用 VS 2022，随包提供原生 Mesa 24.3.4 softpipe 和 MSVC 运行库。
+Windows 使用 `bin/openscad.exe`，其余参数与 macOS 相同。
 工作流为 `.github/workflows/openscad-cli.yml`（**Package OpenSCAD CLI**）。
 默认分支修改工作流或 `scripts/openscad-ci/` 后自动构建，也可手动 Run workflow。
-其他分支只上传 Actions artifacts；默认分支两种架构均通过后，创建或更新
+其他分支只上传 Actions artifacts；默认分支五种目标均通过后，创建或更新
 `openscad-cli-2021.01` GitHub Release，同名附件会被替换。
 使用仓库内置 `GITHUB_TOKEN`，发布 job 具有 `contents: write` 权限。
 同一分支有新提交时，自动取消旧轮次，只验证最新版本。
@@ -48,7 +53,7 @@ vcpkg 编译产物按架构及依赖缓存，失败时也保存已完成的依�
 ## 验收与 Release
 
 每个包包含 CLI、动态运行库、字体、MCAD、配色、示例、已编译的翻译目录、许可证和 `build-info.json`。
-检查 Mach-O 架构后，将实际归档解压到带空格的新路径，隐藏编译目录和 vcpkg 安装目录，
+检查 Mach-O / PE 架构后，将实际归档解压到带空格的新路径，隐藏编译目录和 vcpkg 安装目录，
 清除库/字体/模型搜索环境变量，执行：
 
 1. `--version` 确认版本为 2021.01。
@@ -56,8 +61,8 @@ vcpkg 编译产物按架构及依赖缓存，失败时也保存已完成的依�
 3. 导出 OpenCSG 预览 PNG 和 CGAL 渲染 PNG，检查文件签名与尺寸。
 4. `--info` 确认离屏 OpenGL 可用，无资源丢失或渲染错误。
 
-两个包全部通过后，Release 校验其 SHA-256 和构建元数据，再发布二进制包、逐包校验文件、
-`SHA256SUMS` 以及包含 OpenSCAD、MCAD、构建脚本/补丁的源码包。
+五种包全部通过后，Release 校验其 SHA-256 和构建元数据，再发布二进制包、逐包校验文件、
+`SHA256SUMS` 以及包含 OpenSCAD、MCAD、Mesa、构建脚本/补丁的源码包。
 
 完整解压后使用：
 
@@ -76,4 +81,4 @@ vcpkg 编译产物按架构及依赖缓存，失败时也保存已完成的依�
 python3 -m unittest discover -s scripts/openscad-ci -p 'test_*.py' -v
 ```
 
-完整编译、动态库重定位和 OpenGL 验收以两种 GitHub macOS runner 的运行结果为准。
+完整编译、动态库重定位和 OpenGL 验收以各原生 GitHub runner 的运行结果为准。

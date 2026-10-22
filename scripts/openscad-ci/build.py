@@ -20,7 +20,7 @@ SOURCE_TAG = "openscad-2021.01"
 VCPKG_COMMIT = "6f7ffeb18f99796233b958aaaf14ec7bd4fb64b2"
 MESA_VERSION = "24.3.4"
 MESA_SHA256 = "e641ae27191d387599219694560d221b7feaa91c900bcec46bf444218ed66025"
-TARGETS = ("macos-x64", "macos-arm64")
+TARGETS = ("macos-x64", "macos-arm64", "windows-x64", "windows-x86", "windows-arm64")
 
 
 def run(*args, **kwargs):
@@ -134,6 +134,10 @@ def install_dependencies(target, triplet):
     if target.startswith("windows"):
         # The pinned vcpkg predates native Windows ARM64 host tooling. Its x64
         # host tools run under Windows emulation while libraries target ARM64.
+        tools = vcpkg / "scripts/vcpkgTools.xml"
+        tools.write_text(replace_once(tools.read_text(),
+            "https://www.7-zip.org/a/7z2107-extra.7z",
+            "https://github.com/ip7z/7zip/releases/download/21.07/7z2107-extra.7z"))
         os.environ["VCPKG_DEFAULT_HOST_TRIPLET"] = "x64-windows"
         run("cmd", "/c", vcpkg / "bootstrap-vcpkg.bat", "-disableMetrics")
         executable = vcpkg / "vcpkg.exe"
@@ -310,8 +314,19 @@ def stage(source, build, work, target, prefix, mesa):
         for language in line.split("#", 1)[0].split():
             messages = resources / "locale" / language / "LC_MESSAGES"
             messages.mkdir(parents=True, exist_ok=True)
-            run("msgfmt", "--check-format", "-o", messages / "openscad.mo",
-                source / "locale" / f"{language}.po")
+            if target.startswith("windows"):
+                from babel.messages.pofile import read_po
+                from babel.messages.mofile import write_mo
+                with (source / "locale" / f"{language}.po").open("rb") as stream:
+                    catalog = read_po(stream, locale=language)
+                errors = list(catalog.check())
+                if errors:
+                    raise RuntimeError(f"Invalid translation catalog: {language}: {errors}")
+                with (messages / "openscad.mo").open("wb") as stream:
+                    write_mo(stream, catalog)
+            else:
+                run("msgfmt", "--check-format", "-o", messages / "openscad.mo",
+                    source / "locale" / f"{language}.po")
     (resources / "fonts/fonts.conf").write_text(
         '<?xml version="1.0"?>\n<!DOCTYPE fontconfig SYSTEM "urn:fontconfig:fonts.dtd">\n'
         '<fontconfig><dir prefix="relative">.</dir>'
