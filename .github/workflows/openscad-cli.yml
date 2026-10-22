@@ -87,6 +87,7 @@ jobs:
           key: openscad-deps-v2-${{ matrix.target }}-${{ env.VCPKG_COMMIT }}-${{ hashFiles('scripts/openscad-ci/vcpkg.json', 'scripts/openscad-ci/triplets/**') }}-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: |
             openscad-deps-v2-${{ matrix.target }}-${{ env.VCPKG_COMMIT }}-${{ hashFiles('scripts/openscad-ci/vcpkg.json', 'scripts/openscad-ci/triplets/**') }}-
+            openscad-deps-v2-${{ matrix.target }}-${{ env.VCPKG_COMMIT }}-
       - name: Build macOS dependencies and CLI; test relocated package
         env:
           TARGET: ${{ matrix.target }}

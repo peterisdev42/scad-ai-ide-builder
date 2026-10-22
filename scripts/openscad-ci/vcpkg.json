@@ -2,7 +2,12 @@
   "name": "openscad-headless-dependencies",
   "version-string": "2021.01",
   "dependencies": [
-    "boost-filesystem", "boost-system", "boost-regex", "boost-program-options",
+    "boost-algorithm", "boost-assign", "boost-bind", "boost-circular-buffer",
+    "boost-container-hash", "boost-filesystem", "boost-foreach", "boost-format",
+    "boost-fusion", "boost-lexical-cast", "boost-logic", "boost-numeric-conversion",
+    "boost-optional", "boost-predef", "boost-program-options", "boost-property-tree",
+    "boost-range", "boost-regex", "boost-spirit", "boost-system", "boost-tokenizer",
+    "boost-variant",
     "cgal", "eigen3", "opencsg", "glew", "gmp", "mpfr", "fontconfig",
     "freetype", "harfbuzz", "glib", "libzip", "libxml2", "double-conversion",
     "gettext", "cairo", "zlib"
