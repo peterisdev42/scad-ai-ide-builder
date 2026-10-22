@@ -390,14 +390,73 @@ def stage(source, build, work, target, prefix, mesa):
     return package
 
 
+def verify_runtime_dependencies(package, target):
+    """Reject third-party libraries that would be resolved outside the archive."""
+    if target.startswith("windows"):
+        binaries = list((package / "bin").glob("*.dll")) + [package / "bin/openscad.exe"]
+        bundled = {p.name.lower() for p in binaries}
+        if "opengl32.dll" not in bundled:
+            raise RuntimeError("The Windows package must include Mesa OpenGL")
+        system = Path(os.environ["SystemRoot"]) / "System32"
+        for binary in binaries:
+            check_architecture(binary, target)
+            imports = output("dumpbin", "/nologo", "/dependents", binary)
+            for dependency in re.findall(r"^\s+([^\s]+\.dll)\s*$", imports, re.MULTILINE | re.IGNORECASE):
+                name = dependency.lower()
+                if name in bundled or name.startswith(("api-ms-win-", "ext-ms-win-")):
+                    continue
+                if (not name.startswith(("msvcp", "vcruntime", "concrt", "msvcr"))
+                        and (system / dependency).is_file()):
+                    continue
+                raise RuntimeError(f"Unbundled runtime dependency: {binary.name}: {dependency}")
+    elif target.startswith("macos"):
+        executable = package / "OpenSCAD.app/Contents/MacOS/OpenSCAD"
+        binaries = []
+        for path in (package / "OpenSCAD.app").rglob("*"):
+            if path.is_file():
+                with path.open("rb") as stream:
+                    if stream.read(4) == b"\xcf\xfa\xed\xfe":
+                        binaries.append(path)
+
+        def expand(path, binary):
+            return Path(path.replace("@loader_path", str(binary.parent))
+                        .replace("@executable_path", str(executable.parent)))
+
+        def rpaths(binary):
+            commands = output("otool", "-l", binary)
+            return [expand(p, binary) for p in re.findall(
+                r"cmd LC_RPATH\s+cmdsize \d+\s+path (.*?) \(offset \d+\)", commands)]
+
+        executable_paths = rpaths(executable)
+        for binary in binaries:
+            check_architecture(binary, target)
+            for line in output("otool", "-L", binary).splitlines()[1:]:
+                dependency = line.strip().split(" (compatibility version", 1)[0]
+                if dependency.startswith(("/System/Library/", "/usr/lib/")):
+                    continue
+                if dependency.startswith("@rpath/"):
+                    candidates = [p / dependency[len("@rpath/"):] for p in rpaths(binary) + executable_paths]
+                elif dependency.startswith(("@loader_path/", "@executable_path/")):
+                    candidates = [expand(dependency, binary)]
+                else:
+                    raise RuntimeError(f"Non-relocatable runtime dependency: {binary}: {dependency}")
+                if not any(p.is_file() and p.resolve().is_relative_to(package.resolve()) for p in candidates):
+                    raise RuntimeError(f"Unbundled runtime dependency: {binary}: {dependency}")
+    print(f"Verified bundled runtime dependencies: {target}", flush=True)
+
+
 def smoke_test(package, target, work):
+    verify_runtime_dependencies(package, target)
     binary = package / "bin" / ("openscad.exe" if target.startswith("windows") else "openscad")
     env = os.environ.copy()
     for name in ("OPENSCADPATH", "OPENSCAD_FONT_PATH", "FONTCONFIG_PATH", "FONTCONFIG_FILE",
                  "LD_LIBRARY_PATH", "DYLD_LIBRARY_PATH", "DYLD_FALLBACK_LIBRARY_PATH"):
         env.pop(name, None)
-    env["PATH"] = os.pathsep.join(p for p in env["PATH"].split(os.pathsep)
-                                   if ".build" not in p and "sources/openscad" not in p)
+    if target.startswith("windows"):
+        system = Path(env["SystemRoot"])
+        env["PATH"] = os.pathsep.join(map(str, (system / "System32", system)))
+    else:
+        env["PATH"] = "/usr/bin:/bin:/usr/sbin:/sbin"
     env["LIBGL_ALWAYS_SOFTWARE"] = "1"
     if target.startswith("windows"):
         env["GALLIUM_DRIVER"] = "softpipe"

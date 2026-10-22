@@ -7,13 +7,51 @@ import subprocess
 import tarfile
 import tempfile
 import unittest
+from unittest import mock
 import zipfile
 
-from build import ROOT, SOURCE_COMMIT, SOURCE_TAG, TARGETS, check_architecture, patch_source, package_name
+from build import (ROOT, SOURCE_COMMIT, SOURCE_TAG, TARGETS, check_architecture,
+                   patch_source, package_name, verify_runtime_dependencies)
 from release import verify_assets
 
 
 class PackagingTests(unittest.TestCase):
+    def test_windows_dependency_audit_rejects_missing_transitive_library(self):
+        with tempfile.TemporaryDirectory() as directory:
+            package = Path(directory)
+            (package / 'bin').mkdir()
+            for name in ('openscad.exe', 'opengl32.dll', 'library.dll'):
+                (package / 'bin' / name).touch()
+            def imports(*args):
+                dependency = 'missing.dll' if args[-1].name == 'library.dll' else 'library.dll'
+                return f'Image has the following dependencies:\n    {dependency}\n'
+            with mock.patch.dict('os.environ', {'SystemRoot': directory}), mock.patch(
+                    'build.check_architecture'), mock.patch('build.output', side_effect=imports):
+                with self.assertRaisesRegex(RuntimeError, 'library.dll: missing.dll'):
+                    verify_runtime_dependencies(package, 'windows-arm64')
+                (package / 'bin/missing.dll').touch()
+                verify_runtime_dependencies(package, 'windows-arm64')
+
+    def test_macos_dependency_audit_resolves_rpath_inside_package(self):
+        with tempfile.TemporaryDirectory() as directory:
+            package = Path(directory)
+            executable = package / 'OpenSCAD.app/Contents/MacOS/OpenSCAD'
+            library = package / 'OpenSCAD.app/Contents/Frameworks/library.dylib'
+            data = b'\xcf\xfa\xed\xfe' + struct.pack('<I', 0x100000C)
+            for path in (executable, library):
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(data)
+            def linked(*args):
+                if args[1] == '-l':
+                    return 'cmd LC_RPATH\ncmdsize 48\npath @executable_path/../Frameworks (offset 12)\n'
+                dependency = '@rpath/library.dylib' if args[-1] == executable else '/usr/lib/libSystem.B.dylib'
+                return f'{args[-1]}:\n\t{dependency} (compatibility version 1.0.0, current version 1.0.0)\n'
+            with mock.patch('build.output', side_effect=linked):
+                verify_runtime_dependencies(package, 'macos-arm64')
+                library.unlink()
+                with self.assertRaisesRegex(RuntimeError, 'Unbundled runtime dependency'):
+                    verify_runtime_dependencies(package, 'macos-arm64')
+
     def test_source_pin_matches_peeled_tag_commit_and_workflow(self):
         commit = subprocess.check_output([
             "git", "-C", str(ROOT / "sources/openscad"), "rev-parse",
