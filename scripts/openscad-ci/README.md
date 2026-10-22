@@ -11,7 +11,7 @@
 | Windows x86 | `windows-2022` | `.zip` |
 | Windows ARM64 | `windows-11-arm` | `.zip` |
 
-Linux 暂不参与构建。Windows 使用 VS 2022，随包提供原生 Mesa 24.3.4 softpipe 和 MSVC 运行库。
+Linux 暂不参与构建。Windows x64/x86 使用 VS 2022，ARM64 使用 VS 2026 中的 v143 14.44 工具集，随包提供原生 Mesa 24.3.4 softpipe 和 MSVC 运行库。
 Windows 使用 `bin/openscad.exe`，其余参数与 macOS 相同。
 工作流为 `.github/workflows/openscad-cli.yml`（**Package OpenSCAD CLI**）。
 默认分支修改工作流或 `scripts/openscad-ci/` 后自动构建，也可手动 Run workflow。
@@ -26,7 +26,9 @@ Windows 使用 `bin/openscad.exe`，其余参数与 macOS 相同。
   `41f58fe57c03457a3a8b4dc541ef5654ec3e8c78`。同时获取固定的 MCAD 子模块。
 - vcpkg：`2022.11.14`，提交 `6f7ffeb18f99796233b958aaaf14ec7bd4fb64b2`。
   使用旧版 CGAL 和 Boost API，与 2021.01 源码保持兼容。
-- 两个 runner 显式选择 Xcode 16.4（Apple Clang 17），避免 runner 默认编译器漂移。
+- Windows 宿主使用固定的 vcpkg-tool 2026-09-26 和 MSYS2 下载脚本快照，
+  依赖库仍来自上述 2022.11.14 基线；pkgconf 3.0.10 与 WinFlexBison 2.5.25 验证 SHA-256。
+- 两个 macOS runner 显式选择 Xcode 16.4（Apple Clang 17），避免 runner 默认编译器漂移。
 - `patches/*-modern-macos.patch` 修复新版 Apple SDK 暴露 `TARGET_OS_MAC`
   导致 zlib 1.2.13 误用 Classic Mac OS 的 `fdopen` 宏，以及 libpng 1.6.38
   尝试包含旧式 `fp.h` 的问题。

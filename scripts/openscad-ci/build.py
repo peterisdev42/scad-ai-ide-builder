@@ -155,6 +155,13 @@ def install_dependencies(target, triplet):
         urllib.request.urlretrieve(
             "https://raw.githubusercontent.com/microsoft/vcpkg/52d80838fb40c755b1615fbc9c7b994a33742a22/scripts/vcpkg-tools.json",
             vcpkg / "scripts/vcpkg-tools.json")
+        msys = vcpkg / "scripts/cmake/vcpkg_acquire_msys.cmake"
+        urllib.request.urlretrieve(
+            "https://raw.githubusercontent.com/microsoft/vcpkg/52d80838fb40c755b1615fbc9c7b994a33742a22/scripts/cmake/vcpkg_acquire_msys.cmake",
+            msys)
+        # The public download helper has the same URL/hash interface in 2022.
+        msys.write_text(replace_once(msys.read_text(),
+            "    z_vcpkg_download_distfile(msys_archive", "    vcpkg_download_distfile(msys_archive"))
         os.environ["VCPKG_DISABLE_METRICS"] = "1"
     else:
         os.environ["VCPKG_FORCE_SYSTEM_BINARIES"] = "1"
