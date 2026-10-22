@@ -1,63 +1,50 @@
-# OpenSCAD 2021.01 无头 CLI 打包
+# OpenSCAD 2021.01 macOS 无头 CLI
 
-工作流：`.github/workflows/openscad-cli.yml`，名称 **Package OpenSCAD CLI**。
-在 GitHub Actions 页面选择 **Run workflow** 即可启动。在默认分支修改此工作流或
-`scripts/openscad-ci/` 时也会自动执行；其他分支只生成 Actions artifacts。
-默认分支上的八组构建全部成功后，自动创建或更新 GitHub Release
-`openscad-cli-2021.01`。重复执行会替换同名附件。无需额外配置 PAT，发布 job 使用
-仓库 `GITHUB_TOKEN` 的 `contents: write` 权限。
+第一阶段只构建 macOS 两种原生架构：
 
-| 操作系统 | 架构 | 构建方式 |
+| 目标 | Runner | 包格式 |
 | --- | --- | --- |
-| Linux | x64 | Ubuntu 22.04 容器，原生执行 |
-| Linux | ARM64 | Ubuntu 22.04 容器，ARM64 runner 原生执行 |
-| Linux | ARMv7 hard-float | Ubuntu 22.04 arm/v7 容器，QEMU 执行 |
-| macOS | Intel x64 | Intel runner 原生执行 |
-| macOS | Apple Silicon ARM64 | ARM64 runner 原生执行 |
-| Windows | x64、x86 | VS 2022，分别设置目标工具链并执行对应二进制 |
-| Windows | ARM64 | ARM64 runner 上编译并执行 ARM64 二进制 |
+| Intel x64 | `macos-15-intel` | `.tar.gz` |
+| Apple Silicon ARM64 | `macos-15` | `.tar.gz` |
 
-ARMv7 在 QEMU 下编译 CGAL 可能接近 GitHub hosted runner 的六小时时限。
-所有组独立执行；任一组失败都会阻止 Release 发布。没有使用 `continue-on-error`。
-首次运行需要在 GitHub 上验证完整平台矩阵，静态检查不能替代编译和渲染验收。
+Linux 和 Windows 已从当前工作流移除，不参与构建或 Release 门禁。
+工作流为 `.github/workflows/openscad-cli.yml`（**Package OpenSCAD CLI**）。
+默认分支修改工作流或 `scripts/openscad-ci/` 后自动构建，也可手动 Run workflow。
+其他分支只上传 Actions artifacts；默认分支两种架构均通过后，创建或更新
+`openscad-cli-2021.01` GitHub Release，同名附件会被替换。
+使用仓库内置 `GITHUB_TOKEN`，发布 job 具有 `contents: write` 权限。
 
-## 固定版本与构建方式
+## 固定源码和依赖
 
-- OpenSCAD：`openscad-2021.01`，提交
-  `41f58fe57c03457a3a8b4dc541ef5654ec3e8c78`，同时获取其固定的 MCAD 子模块。
-  此处固定的是 Tag 解引用后的提交 SHA，不是附注 Tag 对象本身的 SHA。
-- macOS/Windows 依赖：vcpkg `2022.11.14`，提交
-  `6f7ffeb18f99796233b958aaaf14ec7bd4fb64b2`。固定旧基线，避免 CGAL 6、Boost
-  新版本移除 2021 源码使用的 API。二进制缓存按架构、依赖清单及 triplet 区分。
-- Linux 依赖：Ubuntu 22.04 软件源；包内记录实际安装版本。
-- Windows 软件 OpenGL：从官方源码编译 Mesa 24.3.4 softpipe，下载时校验固定 SHA-256。
-  三种 Windows 架构都使用对应原生 DLL，不依赖虚拟机的 GPU 驱动。
-- `HEADLESS=ON`、`NULLGL=OFF`，不编译 Qt GUI。OpenGL / OpenCSG / CGAL 均保留。
-- 使用独立的 `.build/<target>/source` 副本打构建兼容补丁，不改上游子模块内容：
-  统一依赖发现、跳过 GUI 测试目标、固定版本号、Windows console subsystem、macOS 最低版本 11。
-  补丁在上游结构不匹配时直接失败。
-- 保留 Cairo/PDF 功能。Linux 启用 lib3MF 1.x；macOS/Windows 固定依赖基线缺少
-  lib3mf port，因此不提供可选的 3MF 导入/导出。
+- OpenSCAD Tag：`openscad-2021.01`；解引用后的提交为
+  `41f58fe57c03457a3a8b4dc541ef5654ec3e8c78`。同时获取固定的 MCAD 子模块。
+- vcpkg：`2022.11.14`，提交 `6f7ffeb18f99796233b958aaaf14ec7bd4fb64b2`。
+  使用旧版 CGAL 和 Boost API，与 2021.01 源码保持兼容。
+- `patches/zlib-modern-macos.patch` 修复新版 Apple SDK 暴露 `TARGET_OS_MAC`
+  导致 zlib 1.2.13 误用 Classic Mac OS 的 `fdopen` 宏的问题。
+- `HEADLESS=ON`、`NULLGL=OFF`：不构建 Qt GUI，保留原生离屏 OpenGL、OpenCSG、CGAL
+  及 Cairo/PDF。固定依赖基线不含可选 lib3mf，因此暂不提供 3MF 导入/导出。
+- macOS 部署目标为 11，应用经过 ad-hoc 签名，未公证；最低系统版本仍需实际机器验收。
 
-## 产物与验收
+OpenSCAD 的构建兼容补丁只应用到 `.build/<target>/source` 副本；不会修改子模块源码。
+vcpkg 编译产物按架构及依赖缓存，失败时也保存已完成的依赖。
+失败日志上传包含隐藏的 `.build` 目录，并把关键依赖日志打印到 Actions 控制台。
 
-Release 包含八个架构压缩包（Windows `.zip`，其他 `.tar.gz`）、各包的 `.sha256`、
-汇总 `SHA256SUMS`，以及源码包。源码包包含 OpenSCAD、MCAD、构建脚本与 Mesa 源码；
-vcpkg 的固定提交和依赖清单可用于定位其他依赖的源码配方。
-每个二进制包附带字体、MCAD、配色、示例、许可证与 `build-info.json`。
+## 验收与 Release
 
-上传前解压实际归档到带空格的新路径，隐藏编译目录和 vcpkg 安装目录，并清除
-库路径/字体/模型搜索环境变量，检查：
+每个包包含 CLI、动态运行库、字体、MCAD、配色、示例、许可证和 `build-info.json`。
+检查 Mach-O 架构后，将实际归档解压到带空格的新路径，隐藏编译目录和 vcpkg 安装目录，
+清除库/字体/模型搜索环境变量，执行：
 
-1. ELF、PE 或 Mach-O 架构与目标匹配，ARMv7 使用 hard-float ABI。
-2. `--version` 为 2021.01。
-3. 使用 MCAD、布尔运算与文字的模型能导出非空 STL。
-4. 能生成 OpenCSG 预览 PNG 与 CGAL 渲染 PNG，检查 PNG 签名与尺寸。
-5. `--info` 成功，未报告资源丢失或渲染错误。
+1. `--version` 确认版本为 2021.01。
+2. 使用 MCAD、布尔运算和文字导出非空 STL。
+3. 导出 OpenCSG 预览 PNG 和 CGAL 渲染 PNG，检查文件签名与尺寸。
+4. `--info` 确认离屏 OpenGL 可用，无资源丢失或渲染错误。
 
-## 使用压缩包
+两个包全部通过后，Release 校验其 SHA-256 和构建元数据，再发布二进制包、逐包校验文件、
+`SHA256SUMS` 以及包含 OpenSCAD、MCAD、构建脚本/补丁的源码包。
 
-完整解压，保留原目录结构：
+完整解压后使用：
 
 ```sh
 ./bin/openscad --version
@@ -66,19 +53,12 @@ vcpkg 的固定提交和依赖清单可用于定位其他依赖的源码配方�
 ./bin/openscad --render=cgal -o render.png model.scad
 ```
 
-Windows 使用 `bin\openscad.exe`。Mesa DLL 与运行库放在同一目录。
-macOS 的 `bin/openscad` 调用包内的 `OpenSCAD.app`；应用经过 ad-hoc 签名，未公证。
-macOS 最低部署目标为 11，仍需在实际最低系统版本上做兼容性验收。
+保留目录结构，启动器会调用包内 `OpenSCAD.app/Contents/MacOS/OpenSCAD`。
 
-Linux 需要 glibc 2.35 或更新版本。OpenSCAD 2021.01 的无头 OpenGL 后端是 GLX，
-仍需要 X server；没有 `DISPLAY` 时启动器自动调用 `xvfb-run`。
-Ubuntu/Debian 可安装运行依赖：
+本地脚本回归检查：
 
 ```sh
-sudo apt-get install xvfb xauth libgl1 libglu1-mesa libglx-mesa0 libgl1-mesa-dri libx11-6
+python3 -m unittest discover -s scripts/openscad-ci -p 'test_*.py' -v
 ```
 
-有可用 X11/OpenGL 环境时使用其 `DISPLAY`。未随包附带 glibc 或显卡驱动；
-Linux 是 glibc 发行版包，不覆盖 Alpine/musl、BSD 或 Android。
-
-本地脚本检查：`python3 -m unittest discover -s scripts/openscad-ci -p 'test_*.py'`。
+完整编译、动态库重定位和 OpenGL 验收以两种 GitHub macOS runner 的运行结果为准。

@@ -20,10 +20,7 @@ SOURCE_TAG = "openscad-2021.01"
 VCPKG_COMMIT = "6f7ffeb18f99796233b958aaaf14ec7bd4fb64b2"
 MESA_VERSION = "24.3.4"
 MESA_SHA256 = "e641ae27191d387599219694560d221b7feaa91c900bcec46bf444218ed66025"
-TARGETS = (
-    "linux-x64", "linux-arm64", "linux-armv7", "macos-x64", "macos-arm64",
-    "windows-x64", "windows-x86", "windows-arm64",
-)
+TARGETS = ("macos-x64", "macos-arm64")
 
 
 def run(*args, **kwargs):
@@ -72,6 +69,12 @@ def install_dependencies(target, triplet):
     vcpkg = ROOT / ".build/vcpkg"
     if output("git", "-C", vcpkg, "rev-parse", "HEAD") != VCPKG_COMMIT:
         raise RuntimeError("Unexpected vcpkg revision")
+    # New Apple SDK headers expose TARGET_OS_MAC to zlib 1.2.13, which
+    # accidentally enables its pre-OS-X fdopen macro and breaks stdio.h.
+    portfile = vcpkg / "ports/zlib/portfile.cmake"
+    patch = (HERE / "patches/zlib-modern-macos.patch").as_posix()
+    portfile.write_text(replace_once(portfile.read_text(), "    PATCHES\n",
+                                    f'    PATCHES\n        "{patch}"\n'))
     triplet_dir = HERE / "triplets"
     if not (triplet_dir / f"{triplet}.cmake").is_file():
         raise RuntimeError(f"Missing pinned triplet: {triplet}")
@@ -86,9 +89,18 @@ def install_dependencies(target, triplet):
         run("bash", vcpkg / "bootstrap-vcpkg.sh", "-disableMetrics")
         executable = vcpkg / "vcpkg"
     installed = ROOT / ".build/installed"
-    run(executable, "install", f"--triplet={triplet}",
-        f"--overlay-triplets={triplet_dir}", f"--x-manifest-root={HERE}",
-        f"--x-install-root={installed}", "--clean-after-build")
+    try:
+        run(executable, "install", f"--triplet={triplet}",
+            f"--overlay-triplets={triplet_dir}", f"--x-manifest-root={HERE}",
+            f"--x-install-root={installed}", "--clean-after-build")
+    except subprocess.CalledProcessError:
+        # vcpkg normally only prints the log paths. Include their contents in
+        # the job log as well, so failures are diagnosable through the API.
+        logs = sorted((vcpkg / "buildtrees").glob("**/*.log"), key=lambda p: p.stat().st_mtime)
+        for log in logs[-6:]:
+            print(f"\n--- {log.relative_to(vcpkg)} ---\n", flush=True)
+            print("\n".join(log.read_text(errors="replace").splitlines()[-120:]), flush=True)
+        raise
     prefix = installed / triplet
     os.environ["PKG_CONFIG_PATH"] = os.pathsep.join(
         str(prefix / item) for item in ("lib/pkgconfig", "share/pkgconfig"))

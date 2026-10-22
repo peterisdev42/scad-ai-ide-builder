@@ -92,7 +92,7 @@ class PackagingTests(unittest.TestCase):
                 verify_assets(dist)
             self.create_assets(dist)
             verify_assets(dist)
-            archive = dist / "openscad-cli-2021.01-windows-arm64.zip"
+            archive = dist / "openscad-cli-2021.01-macos-arm64.tar.gz"
             archive.write_bytes(archive.read_bytes() + b"tampered")
             with self.assertRaisesRegex(RuntimeError, "Invalid checksum"):
                 verify_assets(dist)
