@@ -69,9 +69,10 @@ jobs:
           clang++ --version
       - name: Install macOS build tools
         run: |
-          brew install bison flex pkg-config autoconf autoconf-archive automake libtool ccache
+          brew install bison flex pkg-config autoconf autoconf-archive automake libtool ccache gettext
           echo "$(brew --prefix bison)/bin" >> "$GITHUB_PATH"
           echo "$(brew --prefix flex)/bin" >> "$GITHUB_PATH"
+          echo "$(brew --prefix gettext)/bin" >> "$GITHUB_PATH"
           echo "ACLOCAL_PATH=$(brew --prefix)/share/aclocal" >> "$GITHUB_ENV"
       - name: Install pinned build tools
         run: python -m pip install cmake==3.31.6 ninja==1.11.1.3 meson==1.7.0 Mako==1.3.9 PyYAML==6.0.2 packaging==24.2

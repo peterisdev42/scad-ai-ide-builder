@@ -304,6 +304,14 @@ def stage(source, build, work, target, prefix, mesa):
     check_architecture(binary, target)
     for directory in ("color-schemes", "libraries", "fonts", "examples"):
         shutil.copytree(source / directory, resources / directory, dirs_exist_ok=True)
+    # localization_init() expects the resource directory, and gettext needs
+    # compiled catalogs rather than the source .po files.
+    for line in (source / "locale/LINGUAS").read_text().splitlines():
+        for language in line.split("#", 1)[0].split():
+            messages = resources / "locale" / language / "LC_MESSAGES"
+            messages.mkdir(parents=True, exist_ok=True)
+            run("msgfmt", "--check-format", "-o", messages / "openscad.mo",
+                source / "locale" / f"{language}.po")
     (resources / "fonts/fonts.conf").write_text(
         '<?xml version="1.0"?>\n<!DOCTYPE fontconfig SYSTEM "urn:fontconfig:fonts.dtd">\n'
         '<fontconfig><dir prefix="relative">.</dir>'
@@ -360,7 +368,7 @@ def smoke_test(package, target, work):
                 if data[:8] != b"\x89PNG\r\n\x1a\n" or struct.unpack_from(">II", data, 16) != (256, 256):
                     raise RuntimeError("Invalid PNG output")
         run(binary, "--info", env=env, cwd=test, stdout=stream, stderr=subprocess.STDOUT)
-    if re.search(r"ERROR:|WARNING: Can't open|WARNING: Ignoring unknown module", log.read_text()):
+    if re.search(r"ERROR:|WARNING: Can't open|WARNING: Ignoring unknown module|Could not initialize localization", log.read_text()):
         raise RuntimeError("Smoke test reported a missing resource or rendering error")
 
 
