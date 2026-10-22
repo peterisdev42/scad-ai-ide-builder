@@ -13,11 +13,30 @@ import zipfile
 
 from build import (ROOT, SOURCE_COMMIT, SOURCE_TAG, TARGETS, check_architecture,
                    patch_source, package_name, verify_runtime_dependencies)
-from build import smoke_test
+from build import smoke_test, copy_windows_runtime
 from release import verify_assets
 
 
 class PackagingTests(unittest.TestCase):
+    def test_windows_runtime_collection_follows_transitive_imports_and_toolset(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            binaries = root / 'bin'
+            binaries.mkdir()
+            (binaries / 'openscad.exe').touch()
+            crt = root / 'VC/Redist/MSVC/14.44.1/arm64/Microsoft.VC143.CRT'
+            crt.mkdir(parents=True)
+            for name in ('msvcp140.dll', 'vcruntime140.dll', 'vcruntime140_1.dll'):
+                (crt / name).write_bytes(name.encode())
+            (root / 'VC/Redist/MSVC/14.51.1/arm64/Microsoft.VC145.CRT').mkdir(parents=True)
+            imports = {'openscad.exe': ['MSVCP140.dll'], 'msvcp140.dll': ['VCRUNTIME140.dll'],
+                       'vcruntime140.dll': ['KERNEL32.dll']}
+            with mock.patch.dict(os.environ, {'VCINSTALLDIR': str(root / 'VC'), 'VCToolsVersion': '14.44.35207'}), mock.patch(
+                    'build.windows_imports', side_effect=lambda p: imports[p.name]):
+                self.assertEqual(copy_windows_runtime(binaries, 'windows-arm64'), '14.44.1')
+            self.assertEqual({p.name for p in binaries.iterdir()},
+                             {'openscad.exe', 'msvcp140.dll', 'vcruntime140.dll'})
+
     def test_windows_smoke_environment_handles_uppercase_copied_keys(self):
         class WindowsEnvironment(dict):
             def __getitem__(self, name):

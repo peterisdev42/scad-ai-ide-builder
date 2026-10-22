@@ -260,7 +260,7 @@ def check_architecture(executable, target):
         machine = struct.unpack_from("<I", data, 4)[0]
         expected = {"x64": 0x1000007, "arm64": 0x100000C}[arch]
     if machine != expected:
-        raise RuntimeError(f"Wrong architecture: {machine:#x}, expected {expected:#x}")
+        raise RuntimeError(f"Wrong architecture: {executable}: {machine:#x}, expected {expected:#x}")
 
 
 def bundle_linux(binary, package):
@@ -301,11 +301,44 @@ def copy_licenses(package, prefix):
             "dpkg-query", "-W", "-f=${binary:Package}\t${Version}\t${source:Package}\t${source:Version}\n"))
 
 
+def windows_imports(binary):
+    imports = output("dumpbin", "/nologo", "/dependents", binary)
+    return re.findall(r"^\s+([^\s]+\.dll)\s*$", imports, re.MULTILINE | re.IGNORECASE)
+
+
+def copy_windows_runtime(bin_dir, target):
+    # VsDevCmd may select a newer redistributable than the requested toolset.
+    toolset = ".".join(os.environ["VCToolsVersion"].split(".")[:2])
+    redist = Path(os.environ["VCINSTALLDIR"]) / "Redist/MSVC"
+    versions = sorted(redist.glob(toolset + ".*"), key=lambda p: tuple(map(int, p.name.split("."))))
+    if not versions:
+        raise RuntimeError(f"MSVC {toolset} redistributables missing: {redist}")
+    crt_dirs = list((versions[-1] / target.split("-")[1]).glob("Microsoft.VC*.CRT"))
+    if len(crt_dirs) != 1:
+        raise RuntimeError(f"Expected one MSVC CRT directory: {versions[-1]}")
+    runtime = {p.name.lower(): p for p in crt_dirs[0].glob("*.dll")}
+    pending = list(bin_dir.glob("*.dll")) + [bin_dir / "openscad.exe"]
+    bundled = {p.name.lower() for p in pending}
+    while pending:
+        binary = pending.pop()
+        for dependency in windows_imports(binary):
+            name = dependency.lower()
+            if name in runtime and name not in bundled:
+                source = runtime[name]
+                destination = bin_dir / source.name
+                shutil.copy2(source, destination)
+                bundled.add(name)
+                pending.append(destination)
+                print(f"Bundled required MSVC runtime: {source}", flush=True)
+    return versions[-1].name
+
+
 def stage(source, build, work, target, prefix, mesa):
     package = work / package_name(target)
     package.mkdir()
     bin_dir = package / "bin"
     bin_dir.mkdir()
+    runtime_version = None
     if target.startswith("macos"):
         app = package / "OpenSCAD.app"
         shutil.copytree(build / "OpenSCAD.app", app)
@@ -327,12 +360,7 @@ def stage(source, build, work, target, prefix, mesa):
             shutil.copy2(dll, bin_dir / dll.name)
         for dll in mesa.rglob("*.dll"):
             shutil.copy2(dll, bin_dir / dll.name)
-        redist = Path(os.environ["VCToolsRedistDir"]) / target.split("-")[1]
-        crt_dirs = list(redist.glob("Microsoft.VC*.CRT"))
-        if not crt_dirs:
-            raise RuntimeError(f"MSVC CRT redistributables missing: {redist}")
-        for dll in crt_dirs[-1].glob("*.dll"):
-            shutil.copy2(dll, bin_dir / dll.name)
+        runtime_version = copy_windows_runtime(bin_dir, target)
         resources = bin_dir
         shutil.copy2(work / f"mesa-{MESA_VERSION}/docs/license.rst", package / "MESA-LICENSE.rst")
     else:
@@ -381,6 +409,7 @@ def stage(source, build, work, target, prefix, mesa):
         "headless": True, "opengl": True, "nullgl": False,
         "vcpkg_commit": VCPKG_COMMIT if prefix else None,
         "mesa": MESA_VERSION if mesa else None,
+        "msvc_runtime": runtime_version,
         "lib3mf": target.startswith("linux"),
         "builder_commit": os.environ.get("GITHUB_SHA"),
     }, indent=2) + "\n")
@@ -400,8 +429,7 @@ def verify_runtime_dependencies(package, target):
         system = Path(os.environ["SystemRoot"]) / "System32"
         for binary in binaries:
             check_architecture(binary, target)
-            imports = output("dumpbin", "/nologo", "/dependents", binary)
-            for dependency in re.findall(r"^\s+([^\s]+\.dll)\s*$", imports, re.MULTILINE | re.IGNORECASE):
+            for dependency in windows_imports(binary):
                 name = dependency.lower()
                 if name in bundled or name.startswith(("api-ms-win-", "ext-ms-win-")):
                     continue
