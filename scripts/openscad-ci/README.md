@@ -23,6 +23,8 @@ Linux 和 Windows 已从当前工作流移除，不参与构建或 Release 门�
 - `patches/*-modern-macos.patch` 修复新版 Apple SDK 暴露 `TARGET_OS_MAC`
   导致 zlib 1.2.13 误用 Classic Mac OS 的 `fdopen` 宏，以及 libpng 1.6.38
   尝试包含旧式 `fp.h` 的问题。
+- `patches/pixman-modern-clang.patch` 移除两个浮点返回值上多余的 `const`，
+  与回调类型保持一致，修复新版 Clang 的函数指针类型检查错误。
 - `HEADLESS=ON`、`NULLGL=OFF`：不构建 Qt GUI，保留原生离屏 OpenGL、OpenCSG、CGAL
   及 Cairo/PDF。固定依赖基线不含可选 lib3mf，因此暂不提供 3MF 导入/导出。
 - macOS 部署目标为 11，应用经过 ad-hoc 签名，未公证；最低系统版本仍需实际机器验收。

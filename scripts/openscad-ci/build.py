@@ -71,9 +71,11 @@ def install_dependencies(target, triplet):
         raise RuntimeError("Unexpected vcpkg revision")
     # Modern Apple SDKs expose TARGET_OS_MAC to old dependencies. Exclude
     # macOS from the Classic Mac OS branches (fdopen macro / removed fp.h).
-    for port in ("zlib", "libpng"):
+    for port, patch_name in (("zlib", "zlib-modern-macos.patch"),
+                             ("libpng", "libpng-modern-macos.patch"),
+                             ("pixman", "pixman-modern-clang.patch")):
         portfile = vcpkg / f"ports/{port}/portfile.cmake"
-        patch = (HERE / f"patches/{port}-modern-macos.patch").as_posix()
+        patch = (HERE / "patches" / patch_name).as_posix()
         portfile.write_text(replace_once(portfile.read_text(), "    PATCHES\n",
                                         f'    PATCHES\n        "{patch}"\n'))
     triplet_dir = HERE / "triplets"
@@ -90,6 +92,10 @@ def install_dependencies(target, triplet):
         run("bash", vcpkg / "bootstrap-vcpkg.sh", "-disableMetrics")
         executable = vcpkg / "vcpkg"
     installed = ROOT / ".build/installed"
+    prefix = installed / triplet
+    os.environ["PKG_CONFIG_PATH"] = ""
+    os.environ["PKG_CONFIG_LIBDIR"] = os.pathsep.join(
+        str(prefix / item) for item in ("lib/pkgconfig", "share/pkgconfig"))
     try:
         run(executable, "install", f"--triplet={triplet}",
             f"--overlay-triplets={triplet_dir}", f"--x-manifest-root={HERE}",
@@ -100,7 +106,12 @@ def install_dependencies(target, triplet):
         logs = sorted((vcpkg / "buildtrees").glob("**/*.log"), key=lambda p: p.stat().st_mtime)
         for log in logs[-6:]:
             print(f"\n--- {log.relative_to(vcpkg)} ---\n", flush=True)
-            print("\n".join(log.read_text(errors="replace").splitlines()[-120:]), flush=True)
+            lines = log.read_text(errors="replace").splitlines()
+            selected = set(range(max(0, len(lines) - 40), len(lines)))
+            for index, line in enumerate(lines):
+                if re.search(r"error:|FAILED:|Undefined symbols", line):
+                    selected.update(range(max(0, index - 2), min(len(lines), index + 10)))
+            print("\n".join(lines[index] for index in sorted(selected)), flush=True)
         raise
     prefix = installed / triplet
     os.environ["PKG_CONFIG_PATH"] = os.pathsep.join(
