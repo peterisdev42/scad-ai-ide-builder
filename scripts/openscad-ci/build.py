@@ -69,12 +69,13 @@ def install_dependencies(target, triplet):
     vcpkg = ROOT / ".build/vcpkg"
     if output("git", "-C", vcpkg, "rev-parse", "HEAD") != VCPKG_COMMIT:
         raise RuntimeError("Unexpected vcpkg revision")
-    # New Apple SDK headers expose TARGET_OS_MAC to zlib 1.2.13, which
-    # accidentally enables its pre-OS-X fdopen macro and breaks stdio.h.
-    portfile = vcpkg / "ports/zlib/portfile.cmake"
-    patch = (HERE / "patches/zlib-modern-macos.patch").as_posix()
-    portfile.write_text(replace_once(portfile.read_text(), "    PATCHES\n",
-                                    f'    PATCHES\n        "{patch}"\n'))
+    # Modern Apple SDKs expose TARGET_OS_MAC to old dependencies. Exclude
+    # macOS from the Classic Mac OS branches (fdopen macro / removed fp.h).
+    for port in ("zlib", "libpng"):
+        portfile = vcpkg / f"ports/{port}/portfile.cmake"
+        patch = (HERE / f"patches/{port}-modern-macos.patch").as_posix()
+        portfile.write_text(replace_once(portfile.read_text(), "    PATCHES\n",
+                                        f'    PATCHES\n        "{patch}"\n'))
     triplet_dir = HERE / "triplets"
     if not (triplet_dir / f"{triplet}.cmake").is_file():
         raise RuntimeError(f"Missing pinned triplet: {triplet}")
