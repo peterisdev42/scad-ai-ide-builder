@@ -1,0 +1,37 @@
+name: Inspect Windows ARM64 runtime binaries
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/openscad-windows-runtime-diagnostics.yml
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: windows-11-arm
+    timeout-minutes: 10
+    steps:
+      - name: Inspect installed redistributable architectures
+        shell: pwsh
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $vs = & $vswhere -latest -products '*' -property installationPath
+          $dumpbin = Get-ChildItem "$vs\VC\Tools\MSVC\*\bin\Hostarm64\arm64\dumpbin.exe" | Select-Object -Last 1
+          if (-not $dumpbin) { throw 'Native dumpbin missing' }
+          $files = Get-ChildItem "$vs\VC\Redist\MSVC\*\arm64\Microsoft.VC*.CRT\*.dll"
+          if (-not $files) { throw 'ARM64 CRT missing' }
+          foreach ($dll in $files) {
+            Write-Output $dll.FullName
+            & $dumpbin.FullName /headers $dll.FullName | Select-String 'machine|ARM64X|ARM64EC'
+            if ($LASTEXITCODE -ne 0) { throw "dumpbin failed: $dll" }
+          }
+          "CRT_ROOT=$vs\VC\Redist\MSVC" >> $env:GITHUB_ENV
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-arm64-crt-diagnostics
+          path: ${{ env.CRT_ROOT }}/**/arm64/Microsoft.VC*.CRT/*.dll
+          if-no-files-found: error
+          retention-days: 1
