@@ -9,11 +9,19 @@ import tempfile
 import unittest
 import zipfile
 
-from build import ROOT, SOURCE_COMMIT, TARGETS, check_architecture, patch_source
+from build import ROOT, SOURCE_COMMIT, SOURCE_TAG, TARGETS, check_architecture, patch_source
 from release import verify_assets
 
 
 class PackagingTests(unittest.TestCase):
+    def test_source_pin_matches_peeled_tag_commit_and_workflow(self):
+        commit = subprocess.check_output([
+            "git", "-C", str(ROOT / "sources/openscad"), "rev-parse",
+            f"{SOURCE_TAG}^{{commit}}"], text=True).strip()
+        self.assertEqual(SOURCE_COMMIT, commit)
+        workflow = (ROOT / ".github/workflows/openscad-cli.yml").read_text()
+        self.assertIn(f"  OPENSCAD_COMMIT: {commit}\n", workflow)
+
     def test_patch_applies_to_actual_tag_and_rejects_reapplication(self):
         original = subprocess.check_output([
             "git", "-C", str(ROOT / "sources/openscad"), "show",

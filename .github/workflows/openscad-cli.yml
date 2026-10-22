@@ -16,7 +16,7 @@ concurrency:
 
 env:
   OPENSCAD_TAG: openscad-2021.01
-  OPENSCAD_COMMIT: 92350eba8ce749ddc1d04c2191c65a156a7f07ef
+  OPENSCAD_COMMIT: 41f58fe57c03457a3a8b4dc541ef5654ec3e8c78
   VCPKG_COMMIT: 6f7ffeb18f99796233b958aaaf14ec7bd4fb64b2
 
 jobs:
@@ -61,7 +61,11 @@ jobs:
           submodules: recursive
       - name: Verify immutable source revision
         shell: bash
-        run: test "$(git -C sources/openscad rev-parse HEAD)" = "$OPENSCAD_COMMIT"
+        run: |
+          actual_commit=$(git -C sources/openscad rev-parse 'HEAD^{commit}')
+          echo "Expected source commit: $OPENSCAD_COMMIT"
+          echo "Checked-out source commit: $actual_commit"
+          test "$actual_commit" = "$OPENSCAD_COMMIT"
       - uses: docker/setup-qemu-action@v3
         if: matrix.target == 'linux-armv7'
         with:

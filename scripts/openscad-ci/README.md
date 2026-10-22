@@ -24,7 +24,8 @@ ARMv7 在 QEMU 下编译 CGAL 可能接近 GitHub hosted runner 的六小时时�
 ## 固定版本与构建方式
 
 - OpenSCAD：`openscad-2021.01`，提交
-  `92350eba8ce749ddc1d04c2191c65a156a7f07ef`，同时获取其固定的 MCAD 子模块。
+  `41f58fe57c03457a3a8b4dc541ef5654ec3e8c78`，同时获取其固定的 MCAD 子模块。
+  此处固定的是 Tag 解引用后的提交 SHA，不是附注 Tag 对象本身的 SHA。
 - macOS/Windows 依赖：vcpkg `2022.11.14`，提交
   `6f7ffeb18f99796233b958aaaf14ec7bd4fb64b2`。固定旧基线，避免 CGAL 6、Boost
   新版本移除 2021 源码使用的 API。二进制缓存按架构、依赖清单及 triplet 区分。

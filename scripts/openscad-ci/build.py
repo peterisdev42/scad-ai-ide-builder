@@ -14,7 +14,8 @@ import urllib.request
 
 ROOT = Path(__file__).resolve().parents[2]
 HERE = Path(__file__).resolve().parent
-SOURCE_COMMIT = "92350eba8ce749ddc1d04c2191c65a156a7f07ef"
+# The annotated tag object has a different SHA; pin its peeled commit.
+SOURCE_COMMIT = "41f58fe57c03457a3a8b4dc541ef5654ec3e8c78"
 SOURCE_TAG = "openscad-2021.01"
 VCPKG_COMMIT = "6f7ffeb18f99796233b958aaaf14ec7bd4fb64b2"
 MESA_VERSION = "24.3.4"
