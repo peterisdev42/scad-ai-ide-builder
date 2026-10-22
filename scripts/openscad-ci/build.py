@@ -73,7 +73,8 @@ def install_dependencies(target, triplet):
     # macOS from the Classic Mac OS branches (fdopen macro / removed fp.h).
     for port, patch_name in (("zlib", "zlib-modern-macos.patch"),
                              ("libpng", "libpng-modern-macos.patch"),
-                             ("pixman", "pixman-modern-clang.patch")):
+                             ("pixman", "pixman-modern-clang.patch"),
+                             ("harfbuzz", "harfbuzz-modern-clang.patch")):
         portfile = vcpkg / f"ports/{port}/portfile.cmake"
         patch = (HERE / "patches" / patch_name).as_posix()
         portfile.write_text(replace_once(portfile.read_text(), "    PATCHES\n",
