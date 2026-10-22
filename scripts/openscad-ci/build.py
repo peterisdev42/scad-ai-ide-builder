@@ -54,6 +54,11 @@ def patch_source(source):
     text = replace_once(text, "add_subdirectory(tests)", "# CLI package tests run after relocation.")
     path.write_text(text)
     shutil.copy2(HERE / "dependencies.cmake", source / "ci-dependencies.cmake")
+    path = source / "src/openscad.cc"
+    text = path.read_text()
+    if text.count("boost::join(") != 2:
+        raise RuntimeError("Unexpected OpenSCAD boost::join call sites")
+    path.write_text(text.replace("boost::join(", "boost::algorithm::join("))
 
 
 def archive_source(repo, destination):
@@ -79,6 +84,10 @@ def install_dependencies(target, triplet):
         patch = (HERE / "patches" / patch_name).as_posix()
         portfile.write_text(replace_once(portfile.read_text(), "    PATCHES\n",
                                         f'    PATCHES\n        "{patch}"\n'))
+    portfile = vcpkg / "ports/cgal/portfile.cmake"
+    patch = (HERE / "patches/cgal-iterator-bool.patch").as_posix()
+    portfile.write_text(replace_once(portfile.read_text(), "    HEAD_REF master\n",
+                                    f'    HEAD_REF master\n    PATCHES "{patch}"\n'))
     # The historical gmplib download host times out on GitHub runners.
     # GNU distributes the exact same archive; keep the port's SHA512 check.
     portfile = vcpkg / "ports/gmp/portfile.cmake"

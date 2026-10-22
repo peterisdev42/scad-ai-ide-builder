@@ -31,6 +31,9 @@ Linux 和 Windows 已从当前工作流移除，不参与构建或 Release 门�
   Boost 1.80 MPL 使用其原有的枚举常量写法；其他编译诊断保持启用。
 - `patches/harfbuzz-modern-clang.patch` 将 HarfBuzz 5.0.1 内部针对旧式回调转换的
   `-Wcast-function-type` 从错误降为告警，其余源码诊断仍保留。
+- `patches/cgal-iterator-bool.patch` 修正 CGAL 5.5.1 三个迭代器的空状态判断，
+  直接检查其图指针，与现有空指针比较语义一致。
+  OpenSCAD 两处字符串拼接明确使用 `boost::algorithm::join`，避免与 range join 重载歧义。
 - `HEADLESS=ON`、`NULLGL=OFF`：不构建 Qt GUI，保留原生离屏 OpenGL、OpenCSG、CGAL
   及 Cairo/PDF。固定依赖基线不含可选 lib3mf，因此暂不提供 3MF 导入/导出。
 - macOS 部署目标为 11，应用经过 ad-hoc 签名，未公证；最低系统版本仍需实际机器验收。

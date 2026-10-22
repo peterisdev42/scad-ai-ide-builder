@@ -1,0 +1,30 @@
+diff --git a/BGL/include/CGAL/boost/graph/iterator.h b/BGL/include/CGAL/boost/graph/iterator.h
+--- a/BGL/include/CGAL/boost/graph/iterator.h
++++ b/BGL/include/CGAL/boost/graph/iterator.h
+@@ -221,7 +221,7 @@
+ 
+   operator bool_type() const
+   {
+-    return (! (this->base() == nullptr)) ?
++    return (g != nullptr) ?
+       &Halfedge_around_source_iterator::this_type_does_not_support_comparisons : 0;
+   }
+ 
+@@ -321,7 +321,7 @@
+ 
+   operator bool_type() const
+   {
+-    return (! (this->base() == nullptr)) ?
++    return (g != nullptr) ?
+       &Halfedge_around_target_iterator::this_type_does_not_support_comparisons : 0;
+   }
+ 
+@@ -420,7 +420,7 @@
+ 
+   operator bool_type() const
+   {
+-    return (! (this->base() == nullptr)) ?
++    return (g != nullptr) ?
+       &Halfedge_around_face_iterator::this_type_does_not_support_comparisons : 0;
+   }
+ 

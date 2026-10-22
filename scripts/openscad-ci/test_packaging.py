@@ -29,6 +29,10 @@ class PackagingTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             source = Path(directory)
             (source / "CMakeLists.txt").write_text(original)
+            (source / "src").mkdir()
+            (source / "src/openscad.cc").write_text(subprocess.check_output([
+                "git", "-C", str(ROOT / "sources/openscad"), "show",
+                "openscad-2021.01:src/openscad.cc"], text=True))
             patch_source(source)
             patched = (source / "CMakeLists.txt").read_text()
             self.assertIn('set(VERSION "2021.01")', patched)
@@ -39,6 +43,7 @@ class PackagingTests(unittest.TestCase):
             self.assertIn("/SUBSYSTEM:CONSOLE", patched)
             self.assertNotIn("add_subdirectory(tests)", patched)
             self.assertTrue((source / "ci-dependencies.cmake").is_file())
+            self.assertNotIn("boost::join(", (source / "src/openscad.cc").read_text())
             with self.assertRaises((RuntimeError, ValueError)):
                 patch_source(source)
 
