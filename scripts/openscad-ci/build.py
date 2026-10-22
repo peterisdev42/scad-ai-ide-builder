@@ -123,10 +123,14 @@ def install_dependencies(target, triplet):
         patch = (HERE / "patches" / patch_name).as_posix()
         portfile.write_text(replace_once(portfile.read_text(), "    PATCHES\n",
                                         f'    PATCHES\n        "{patch}"\n'))
-    portfile = vcpkg / "ports/cgal/portfile.cmake"
-    patch = (HERE / "patches/cgal-iterator-bool.patch").as_posix()
-    portfile.write_text(replace_once(portfile.read_text(), "    HEAD_REF master\n",
-                                    f'    HEAD_REF master\n    PATCHES "{patch}"\n'))
+    header_patches = [("cgal", "cgal-iterator-bool.patch")]
+    if target.startswith("macos"):
+        header_patches.append(("boost-mpl", "boost-mpl-lazy-enum-constants.patch"))
+    for port, patch_name in header_patches:
+        portfile = vcpkg / f"ports/{port}/portfile.cmake"
+        patch = (HERE / "patches" / patch_name).as_posix()
+        portfile.write_text(replace_once(portfile.read_text(), "    HEAD_REF master\n",
+                                        f'    HEAD_REF master\n    PATCHES "{patch}"\n'))
     # The historical gmplib download host times out on GitHub runners.
     # GNU distributes the exact same archive; keep the port's SHA512 check.
     portfile = vcpkg / "ports/gmp/portfile.cmake"
@@ -540,8 +544,6 @@ def main():
                     f"-DVCPKG_OVERLAY_TRIPLETS={HERE}/triplets", "-DVCPKG_MANIFEST_MODE=OFF"]
     if target.startswith("macos"):
         options += [f"-DCMAKE_OSX_ARCHITECTURES={'arm64' if target.endswith('arm64') else 'x86_64'}"]
-        # Boost 1.80 MPL uses enum constants accepted by its original compiler.
-        options += ["-DCMAKE_CXX_FLAGS=-Wno-enum-constexpr-conversion"]
     if target.startswith("windows"):
         options += [f"-DFLEX_EXECUTABLE={shutil.which('win_flex')}",
                     f"-DBISON_EXECUTABLE={shutil.which('win_bison')}"]

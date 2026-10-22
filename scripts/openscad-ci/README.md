@@ -39,8 +39,9 @@ Windows 使用 `bin/openscad.exe`，其余参数与 macOS 相同。
   尝试包含旧式 `fp.h` 的问题。
 - `patches/pixman-modern-clang.patch` 移除两个浮点返回值上多余的 `const`，
   与回调类型保持一致，修复新版 Clang 的函数指针类型检查错误。
-- 依赖与 OpenSCAD 的 C++ 编译使用 `-Wno-enum-constexpr-conversion`，允许固定
-  Boost 1.80 MPL 使用其原有的枚举常量写法；其他编译诊断保持启用。
+- `patches/boost-mpl-lazy-enum-constants.patch` 回移 [Boost.MPL 上游 PR #77](https://github.com/boostorg/mpl/pull/77)，
+  延迟实例化枚举的相邻常量，修复 Boost 1.80 在 Clang 21 下的越界枚举常量错误。
+  不再使用新版 Clang 已移除的 `-Wno-enum-constexpr-conversion` 开关。
 - `patches/harfbuzz-modern-clang.patch` 将 HarfBuzz 5.0.1 内部针对旧式回调转换的
   `-Wcast-function-type` 从错误降为告警，其余源码诊断仍保留。
 - `patches/cgal-iterator-bool.patch` 修正 CGAL 5.5.1 三个迭代器的空状态判断，
