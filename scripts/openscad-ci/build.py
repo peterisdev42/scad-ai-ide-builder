@@ -8,6 +8,7 @@ import re
 import shutil
 import struct
 import subprocess
+import sys
 import tarfile
 import tempfile
 import urllib.request
@@ -146,6 +147,9 @@ def install_dependencies(target, triplet):
             executable)
         if hashlib.sha256(executable.read_bytes()).hexdigest() != "2a4ae1467b9e797964c60c919d057b9e5dc1ec03f4b9632c1150026db25201f2":
             raise RuntimeError("vcpkg host tool checksum mismatch")
+        urllib.request.urlretrieve(
+            "https://raw.githubusercontent.com/microsoft/vcpkg/52d80838fb40c755b1615fbc9c7b994a33742a22/scripts/vcpkg-tools.json",
+            vcpkg / "scripts/vcpkg-tools.json")
         os.environ["VCPKG_DISABLE_METRICS"] = "1"
     else:
         os.environ["VCPKG_FORCE_SYSTEM_BINARIES"] = "1"
@@ -321,15 +325,15 @@ def stage(source, build, work, target, prefix, mesa):
             messages = resources / "locale" / language / "LC_MESSAGES"
             messages.mkdir(parents=True, exist_ok=True)
             if target.startswith("windows"):
-                from babel.messages.pofile import read_po
-                from babel.messages.mofile import write_mo
-                with (source / "locale" / f"{language}.po").open("rb") as stream:
-                    catalog = read_po(stream, locale=language)
-                errors = list(catalog.check())
-                if errors:
-                    raise RuntimeError(f"Invalid translation catalog: {language}: {errors}")
-                with (messages / "openscad.mo").open("wb") as stream:
-                    write_mo(stream, catalog)
+                compiler = work / "msgfmt.py"
+                if not compiler.exists():
+                    urllib.request.urlretrieve(
+                        "https://raw.githubusercontent.com/python/cpython/v3.11.14/Tools/i18n/msgfmt.py",
+                        compiler)
+                if hashlib.sha256(compiler.read_bytes()).hexdigest() != "79c83d2646e7cf742226b52c989431cea1b08749adbb599fba001bb0203efe1f":
+                    raise RuntimeError("CPython msgfmt checksum mismatch")
+                run(sys.executable, compiler, "-o", messages / "openscad.mo",
+                    source / "locale" / f"{language}.po")
             else:
                 run("msgfmt", "--check-format", "-o", messages / "openscad.mo",
                     source / "locale" / f"{language}.po")
