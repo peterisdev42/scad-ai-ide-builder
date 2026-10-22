@@ -83,6 +83,15 @@ def patch_source(source):
     }
     writer.write_footer();""")
     path.write_text(text)
+    path = source / "src/cgalutils-tess.cc"
+    text = replace_once(path.read_text(), """#if CGAL_VERSION_NR >= CGAL_VERSION_NUMBER(4,11,0)
+  #include <CGAL/Triangulation_2_projection_traits_3.h>
+#else
+  #include <CGAL/Triangulation_2_filtered_projection_traits_3.h>
+#endif""", "#include <CGAL/Projection_traits_3.h>")
+    text = replace_once(text, "CGAL::Triangulation_2_filtered_projection_traits_3<K>",
+                        "CGAL::Projection_traits_3<K>")
+    path.write_text(text)
 
 
 def archive_source(repo, destination):

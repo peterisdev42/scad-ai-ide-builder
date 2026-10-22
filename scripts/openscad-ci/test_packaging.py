@@ -36,6 +36,9 @@ class PackagingTests(unittest.TestCase):
             (source / "src/cgalutils-polyhedron.cc").write_text(subprocess.check_output([
                 "git", "-C", str(ROOT / "sources/openscad"), "show",
                 "openscad-2021.01:src/cgalutils-polyhedron.cc"], text=True))
+            (source / "src/cgalutils-tess.cc").write_text(subprocess.check_output([
+                "git", "-C", str(ROOT / "sources/openscad"), "show",
+                "openscad-2021.01:src/cgalutils-tess.cc"], text=True))
             patch_source(source)
             patched = (source / "CMakeLists.txt").read_text()
             self.assertIn('set(VERSION "2021.01")', patched)
@@ -47,6 +50,7 @@ class PackagingTests(unittest.TestCase):
             self.assertNotIn("add_subdirectory(tests)", patched)
             self.assertTrue((source / "ci-dependencies.cmake").is_file())
             self.assertNotIn("boost::join(", (source / "src/openscad.cc").read_text())
+            self.assertIn("CGAL::Projection_traits_3<K>", (source / "src/cgalutils-tess.cc").read_text())
             with self.assertRaises((RuntimeError, ValueError)):
                 patch_source(source)
 

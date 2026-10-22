@@ -36,6 +36,7 @@ Linux 和 Windows 已从当前工作流移除，不参与构建或 Release 门�
   OpenSCAD 两处字符串拼接明确使用 `boost::algorithm::join`，避免与 range join 重载歧义。
 - OpenSCAD 的多面体文本输出显式遍历顶点和面，保持原 writer 的格式与面方向，
   不再使用 CGAL 已移除的 `generic_print_polyhedron`。
+- 三角剖分改用 CGAL 官方替代接口 `Projection_traits_3`，按 kernel 保留过滤谓词。
 - `HEADLESS=ON`、`NULLGL=OFF`：不构建 Qt GUI，保留原生离屏 OpenGL、OpenCSG、CGAL
   及 Cairo/PDF。固定依赖基线不含可选 lib3mf，因此暂不提供 3MF 导入/导出。
 - macOS 部署目标为 11，应用经过 ad-hoc 签名，未公证；最低系统版本仍需实际机器验收。
