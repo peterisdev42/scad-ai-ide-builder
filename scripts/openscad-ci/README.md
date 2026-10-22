@@ -13,6 +13,7 @@ Linux 和 Windows 已从当前工作流移除，不参与构建或 Release 门�
 其他分支只上传 Actions artifacts；默认分支两种架构均通过后，创建或更新
 `openscad-cli-2021.01` GitHub Release，同名附件会被替换。
 使用仓库内置 `GITHUB_TOKEN`，发布 job 具有 `contents: write` 权限。
+同一分支有新提交时，自动取消旧轮次，只验证最新版本。
 
 ## 固定源码和依赖
 

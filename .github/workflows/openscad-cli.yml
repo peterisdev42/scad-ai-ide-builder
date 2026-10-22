@@ -12,7 +12,7 @@ permissions:
 
 concurrency:
   group: openscad-cli-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 env:
   OPENSCAD_TAG: openscad-2021.01
