@@ -139,6 +139,11 @@ def install_dependencies(target, triplet):
         tools.write_text(replace_once(tools.read_text(),
             "https://www.7-zip.org/a/7z2107-extra.7z",
             "https://github.com/ip7z/7zip/releases/download/21.07/7z2107-extra.7z"))
+        helper = vcpkg / "ports/boost-modular-build-helper/boost-modular-build.cmake"
+        helper.write_text(replace_once(helper.read_text(),
+            'string(REPLACE "-vc143-" "-vc140-" NEW_FILENAME ${NEW_FILENAME})',
+            'string(REGEX REPLACE "-vc14[0-9]-" "-vc140-" NEW_FILENAME "${NEW_FILENAME}")'))
+        os.environ["VCPKG_FORCE_SYSTEM_BINARIES"] = "1"
         os.environ["VCPKG_DEFAULT_HOST_TRIPLET"] = "x64-windows"
         executable = vcpkg / "vcpkg.exe"
         # Upgrade only the host tool, preserving the pinned ports and libraries.
