@@ -165,6 +165,18 @@ def install_dependencies(target, triplet):
         # The public download helper has the same URL/hash interface in 2022.
         msys.write_text(replace_once(msys.read_text(),
             "    z_vcpkg_download_distfile(msys_archive", "    vcpkg_download_distfile(msys_archive"))
+        # Match upstream's GMP/MSVC workaround: autoconf 2.72 fails to
+        # recognize dumpbin symbols, leaving an empty libtool symbol filter.
+        msys.write_text(replace_once(msys.read_text(), "endmacro()", """    z_vcpkg_acquire_msys_declare_package(
+        URL "https://mirror.msys2.org/msys/x86_64/autoconf2.71-2.71-4-any.pkg.tar.zst"
+        SHA512 c93b791eb55893cbe7c425e764074837355fd165deb7b1775f652c8e25d9d1f0cdd4120ab710d56fb859b7df55c4f971eccda7c112448f60615bff8a2dc81166
+        DEPS awk bash diffutils m4 perl sed
+    )
+endmacro()"""))
+        gmp = vcpkg / "ports/gmp/portfile.cmake"
+        gmp.write_text(replace_once(gmp.read_text(), "vcpkg_configure_make(\n",
+            'set(ENV{WANT_AUTOCONF} 2.71)\nvcpkg_configure_make(\n'
+            '    ADDITIONAL_MSYS_PACKAGES autoconf2.71\n'))
         os.environ["VCPKG_DISABLE_METRICS"] = "1"
     else:
         os.environ["VCPKG_FORCE_SYSTEM_BINARIES"] = "1"
