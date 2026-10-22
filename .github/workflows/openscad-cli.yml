@@ -69,7 +69,7 @@ jobs:
           clang++ --version
       - name: Install macOS build tools
         run: |
-          brew install bison flex pkg-config autoconf autoconf-archive automake libtool
+          brew install bison flex pkg-config autoconf autoconf-archive automake libtool ccache
           echo "$(brew --prefix bison)/bin" >> "$GITHUB_PATH"
           echo "$(brew --prefix flex)/bin" >> "$GITHUB_PATH"
           echo "ACLOCAL_PATH=$(brew --prefix)/share/aclocal" >> "$GITHUB_ENV"
@@ -83,7 +83,9 @@ jobs:
       - uses: actions/cache/restore@v4
         id: dependency-cache
         with:
-          path: .build/vcpkg-cache
+          path: |
+            .build/vcpkg-cache
+            .build/ccache
           key: openscad-deps-v2-${{ matrix.target }}-${{ env.VCPKG_COMMIT }}-${{ hashFiles('scripts/openscad-ci/vcpkg.json', 'scripts/openscad-ci/triplets/**') }}-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: |
             openscad-deps-v2-${{ matrix.target }}-${{ env.VCPKG_COMMIT }}-${{ hashFiles('scripts/openscad-ci/vcpkg.json', 'scripts/openscad-ci/triplets/**') }}-
@@ -93,12 +95,16 @@ jobs:
           TARGET: ${{ matrix.target }}
           TRIPLET: ${{ matrix.triplet }}
           VCPKG_BINARY_SOURCES: clear;files,${{ github.workspace }}/.build/vcpkg-cache,readwrite
+          CCACHE_DIR: ${{ github.workspace }}/.build/ccache
+          CCACHE_BASEDIR: ${{ github.workspace }}
         run: python scripts/openscad-ci/build.py
       - name: Save dependency cache (including partial builds)
         if: always()
         uses: actions/cache/save@v4
         with:
-          path: .build/vcpkg-cache
+          path: |
+            .build/vcpkg-cache
+            .build/ccache
           key: ${{ steps.dependency-cache.outputs.cache-primary-key }}
       - uses: actions/upload-artifact@v4
         with:

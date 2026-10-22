@@ -34,6 +34,8 @@ Linux 和 Windows 已从当前工作流移除，不参与构建或 Release 门�
 - `patches/cgal-iterator-bool.patch` 修正 CGAL 5.5.1 三个迭代器的空状态判断，
   直接检查其图指针，与现有空指针比较语义一致。
   OpenSCAD 两处字符串拼接明确使用 `boost::algorithm::join`，避免与 range join 重载歧义。
+- OpenSCAD 的多面体文本输出显式遍历顶点和面，保持原 writer 的格式与面方向，
+  不再使用 CGAL 已移除的 `generic_print_polyhedron`。
 - `HEADLESS=ON`、`NULLGL=OFF`：不构建 Qt GUI，保留原生离屏 OpenGL、OpenCSG、CGAL
   及 Cairo/PDF。固定依赖基线不含可选 lib3mf，因此暂不提供 3MF 导入/导出。
 - macOS 部署目标为 11，应用经过 ad-hoc 签名，未公证；最低系统版本仍需实际机器验收。

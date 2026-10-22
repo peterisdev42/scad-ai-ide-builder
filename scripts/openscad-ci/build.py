@@ -59,6 +59,30 @@ def patch_source(source):
     if text.count("boost::join(") != 2:
         raise RuntimeError("Unexpected OpenSCAD boost::join call sites")
     path.write_text(text.replace("boost::join(", "boost::algorithm::join("))
+    path = source / "src/cgalutils-polyhedron.cc"
+    text = replace_once(path.read_text(), '#include "cgalutils.h"',
+                        '#include "cgalutils.h"\n#include <map>')
+    text = replace_once(text, "    generic_print_polyhedron(sstream, p, writer);", """    writer.write_header(sstream, p.size_of_vertices(), p.size_of_halfedges(), p.size_of_facets());
+    std::map<typename Polyhedron::Vertex_const_handle, std::size_t> indices;
+    std::size_t index = 0;
+    for (auto vertex = p.vertices_begin(); vertex != p.vertices_end(); ++vertex) {
+      indices[vertex] = index++;
+      const auto &point = vertex->point();
+      writer.write_vertex(CGAL::to_double(point.x()), CGAL::to_double(point.y()), CGAL::to_double(point.z()));
+    }
+    writer.write_facet_header();
+    for (auto facet = p.facets_begin(); facet != p.facets_end(); ++facet) {
+      auto edge = facet->facet_begin();
+      const auto first = edge;
+      writer.write_facet_begin(0);
+      do {
+        writer.write_facet_vertex_index(indices.at(edge->vertex()));
+        ++edge;
+      } while (edge != first);
+      writer.write_facet_end();
+    }
+    writer.write_footer();""")
+    path.write_text(text)
 
 
 def archive_source(repo, destination):
@@ -363,7 +387,8 @@ def main():
     build = work / "build"
     run("cmake", "-S", source, "-B", build, "-G", "Ninja", "-DCMAKE_BUILD_TYPE=Release",
         "-DHEADLESS=ON", "-DNULLGL=OFF", "-DINFO=OFF", *options)
-    run("cmake", "--build", build, "--target", "OpenSCAD", "--parallel", "2")
+    # Report all translation-unit failures together instead of stopping at the first.
+    run("cmake", "--build", build, "--target", "OpenSCAD", "--parallel", "2", "--", "-k", "0")
     package = stage(source, build, work, target, prefix, mesa)
     dist = ROOT / "dist"
     dist.mkdir(exist_ok=True)

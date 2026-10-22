@@ -33,6 +33,9 @@ class PackagingTests(unittest.TestCase):
             (source / "src/openscad.cc").write_text(subprocess.check_output([
                 "git", "-C", str(ROOT / "sources/openscad"), "show",
                 "openscad-2021.01:src/openscad.cc"], text=True))
+            (source / "src/cgalutils-polyhedron.cc").write_text(subprocess.check_output([
+                "git", "-C", str(ROOT / "sources/openscad"), "show",
+                "openscad-2021.01:src/cgalutils-polyhedron.cc"], text=True))
             patch_source(source)
             patched = (source / "CMakeLists.txt").read_text()
             self.assertIn('set(VERSION "2021.01")', patched)
