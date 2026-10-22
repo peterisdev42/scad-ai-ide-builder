@@ -1,6 +1,7 @@
 import hashlib
 import io
 import json
+import os
 from pathlib import Path
 import struct
 import subprocess
@@ -12,10 +13,27 @@ import zipfile
 
 from build import (ROOT, SOURCE_COMMIT, SOURCE_TAG, TARGETS, check_architecture,
                    patch_source, package_name, verify_runtime_dependencies)
+from build import smoke_test
 from release import verify_assets
 
 
 class PackagingTests(unittest.TestCase):
+    def test_windows_smoke_environment_handles_uppercase_copied_keys(self):
+        class WindowsEnvironment(dict):
+            def __getitem__(self, name):
+                return super().__getitem__(name.upper())
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            environment = WindowsEnvironment(SYSTEMROOT=str(root), PATH='/third-party/bin')
+            def first_command(*args, **kwargs):
+                self.assertEqual(kwargs['env']['PATH'], str(root / 'System32') + os.pathsep + str(root))
+                raise RuntimeError('Reached CLI with isolated PATH')
+            with mock.patch('build.os.environ', environment), mock.patch(
+                    'build.verify_runtime_dependencies'), mock.patch('build.run', side_effect=first_command):
+                with self.assertRaisesRegex(RuntimeError, 'Reached CLI with isolated PATH'):
+                    smoke_test(root, 'windows-x86', root)
+
     def test_windows_dependency_audit_rejects_missing_transitive_library(self):
         with tempfile.TemporaryDirectory() as directory:
             package = Path(directory)

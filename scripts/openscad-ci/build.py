@@ -453,7 +453,8 @@ def smoke_test(package, target, work):
                  "LD_LIBRARY_PATH", "DYLD_LIBRARY_PATH", "DYLD_FALLBACK_LIBRARY_PATH"):
         env.pop(name, None)
     if target.startswith("windows"):
-        system = Path(env["SystemRoot"])
+        # os.environ is case-insensitive on Windows, but its copied dict is not.
+        system = Path(os.environ["SystemRoot"])
         env["PATH"] = os.pathsep.join(map(str, (system / "System32", system)))
     else:
         env["PATH"] = "/usr/bin:/bin:/usr/sbin:/sbin"
