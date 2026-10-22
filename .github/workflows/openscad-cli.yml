@@ -41,8 +41,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { target: macos-x64, runner: macos-15-intel, triplet: x64-osx }
-          - { target: macos-arm64, runner: macos-15, triplet: arm64-osx }
+          - { target: macos-x64, runner: macos-26-intel, triplet: x64-osx }
+          - { target: macos-arm64, runner: macos-latest, triplet: arm64-osx }
           - { target: windows-x64, runner: windows-2022, triplet: x64-windows, arch: x64 }
           - { target: windows-x86, runner: windows-2022, triplet: x86-windows, arch: x86 }
           - { target: windows-arm64, runner: windows-11-arm, triplet: arm64-windows, arch: arm64 }
@@ -66,12 +66,17 @@ jobs:
         with:
           python-version: '3.11'
           architecture: ${{ runner.os == 'macOS' && runner.arch == 'ARM64' && 'arm64' || 'x64' }}
-      - name: Select the supported Xcode toolchain
+      - name: Select and report the image's default Xcode toolchain
         if: runner.os == 'macOS'
         run: |
-          sudo xcode-select --switch /Applications/Xcode_16.4.app/Contents/Developer
+          sudo xcode-select --switch /Applications/Xcode.app/Contents/Developer
+          echo "CC=$(xcrun --find clang)" >> "$GITHUB_ENV"
+          echo "CXX=$(xcrun --find clang++)" >> "$GITHUB_ENV"
+          sw_vers
+          uname -m
+          xcode-select --print-path
           xcodebuild -version
-          clang++ --version
+          xcrun clang++ --version
       - name: Install macOS build tools
         if: runner.os == 'macOS'
         run: |

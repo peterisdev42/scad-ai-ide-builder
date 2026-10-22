@@ -4,8 +4,8 @@
 
 | 目标 | Runner | 包格式 |
 | --- | --- | --- |
-| Intel x64 | `macos-15-intel` | `.tar.gz` |
-| Apple Silicon ARM64 | `macos-15` | `.tar.gz` |
+| Intel x64 | `macos-26-intel` | `.tar.gz` |
+| Apple Silicon ARM64 | `macos-latest`（目前为 macOS 26） | `.tar.gz` |
 | Windows x64 | `windows-2022` | `.zip` |
 | Windows x86 | `windows-2022` | `.zip` |
 | Windows ARM64 | `windows-11-arm` | `.zip` |
@@ -31,7 +31,9 @@ Windows 使用 `bin/openscad.exe`，其余参数与 macOS 相同。
 - Windows 宿主使用固定的 vcpkg-tool 2026-09-26 和 MSYS2 下载脚本快照，
   依赖库仍来自上述 2022.11.14 基线；pkgconf 3.0.10 与 WinFlexBison 2.5.25 验证 SHA-256。
 - GLEW 2.2.0 使用链接器默认 DLL 基址，避免旧的 32 位固定基址导致 Windows ARM64 的 LNK1355 错误。
-- 两个 macOS runner 显式选择 Xcode 16.4（Apple Clang 17），避免 runner 默认编译器漂移。
+- macOS 使用当前稳定镜像：Intel 为 `macos-26-intel`，ARM64 为 `macos-latest`。
+  使用镜像默认的 `/Applications/Xcode.app`，显式设置对应的 Apple Clang `CC` / `CXX`，
+  并在日志输出系统、架构、Xcode 和编译器版本。镜像升级时工具链也可能更新。
 - `patches/*-modern-macos.patch` 修复新版 Apple SDK 暴露 `TARGET_OS_MAC`
   导致 zlib 1.2.13 误用 Classic Mac OS 的 `fdopen` 宏，以及 libpng 1.6.38
   尝试包含旧式 `fp.h` 的问题。
