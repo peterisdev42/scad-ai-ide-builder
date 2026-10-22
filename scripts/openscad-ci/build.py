@@ -344,6 +344,8 @@ def main():
                     f"-DVCPKG_OVERLAY_TRIPLETS={HERE}/triplets", "-DVCPKG_MANIFEST_MODE=OFF"]
     if target.startswith("macos"):
         options += [f"-DCMAKE_OSX_ARCHITECTURES={'arm64' if target.endswith('arm64') else 'x86_64'}"]
+        # Boost 1.80 MPL uses enum constants accepted by its original compiler.
+        options += ["-DCMAKE_CXX_FLAGS=-Wno-enum-constexpr-conversion"]
     if target.startswith("windows"):
         options += [f"-DFLEX_EXECUTABLE={shutil.which('win_flex')}",
                     f"-DBISON_EXECUTABLE={shutil.which('win_bison')}"]

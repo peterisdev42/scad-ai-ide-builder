@@ -26,6 +26,8 @@ Linux 和 Windows 已从当前工作流移除，不参与构建或 Release 门�
   尝试包含旧式 `fp.h` 的问题。
 - `patches/pixman-modern-clang.patch` 移除两个浮点返回值上多余的 `const`，
   与回调类型保持一致，修复新版 Clang 的函数指针类型检查错误。
+- 依赖与 OpenSCAD 的 C++ 编译使用 `-Wno-enum-constexpr-conversion`，允许固定
+  Boost 1.80 MPL 使用其原有的枚举常量写法；其他编译诊断保持启用。
 - `HEADLESS=ON`、`NULLGL=OFF`：不构建 Qt GUI，保留原生离屏 OpenGL、OpenCSG、CGAL
   及 Cairo/PDF。固定依赖基线不含可选 lib3mf，因此暂不提供 3MF 导入/导出。
 - macOS 部署目标为 11，应用经过 ad-hoc 签名，未公证；最低系统版本仍需实际机器验收。
