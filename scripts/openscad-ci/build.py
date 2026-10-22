@@ -346,9 +346,10 @@ def smoke_test(package, target, work):
     with log.open("w") as stream:
         result = run(binary, "--version", env=env, cwd=test, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
         stream.write(result.stdout)
+        stream.flush()
         if "2021.01" not in result.stdout:
             raise RuntimeError("Packaged executable reports the wrong version")
-        for name, flags in (("model.stl", []), ("preview.png", ["--preview=", "--imgsize=256,256"]),
+        for name, flags in (("model.stl", []), ("preview.png", ["--preview", "--imgsize=256,256"]),
                             ("render.png", ["--render=cgal", "--imgsize=256,256"])):
             run(binary, *flags, "-o", test / name, model, env=env, cwd=test, stdout=stream, stderr=subprocess.STDOUT)
             artifact = test / name
@@ -359,7 +360,6 @@ def smoke_test(package, target, work):
                 if data[:8] != b"\x89PNG\r\n\x1a\n" or struct.unpack_from(">II", data, 16) != (256, 256):
                     raise RuntimeError("Invalid PNG output")
         run(binary, "--info", env=env, cwd=test, stdout=stream, stderr=subprocess.STDOUT)
-    print(log.read_text(), flush=True)
     if re.search(r"ERROR:|WARNING: Can't open|WARNING: Ignoring unknown module", log.read_text()):
         raise RuntimeError("Smoke test reported a missing resource or rendering error")
 
@@ -419,6 +419,9 @@ def main():
     finally:
         for original, renamed in reversed(hidden):
             renamed.rename(original)
+        log = work / "smoke/smoke.log"
+        if log.exists():
+            print(log.read_text(errors="replace"), flush=True)
     (dist / (archive.name + ".sha256")).write_text(
         hashlib.sha256(archive.read_bytes()).hexdigest() + "  " + archive.name + "\n")
 

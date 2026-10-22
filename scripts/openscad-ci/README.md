@@ -64,7 +64,7 @@ vcpkg 编译产物按架构及依赖缓存，失败时也保存已完成的依�
 ```sh
 ./bin/openscad --version
 ./bin/openscad -o model.stl model.scad
-./bin/openscad --preview= -o preview.png model.scad
+./bin/openscad --preview -o preview.png model.scad
 ./bin/openscad --render=cgal -o render.png model.scad
 ```
 
