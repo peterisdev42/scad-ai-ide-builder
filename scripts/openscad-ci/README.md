@@ -42,6 +42,7 @@ Windows 使用 `bin/openscad.exe`，其余参数与 macOS 相同。
 - `patches/boost-mpl-lazy-enum-constants.patch` 回移 [Boost.MPL 上游 PR #77](https://github.com/boostorg/mpl/pull/77)，
   延迟实例化枚举的相邻常量，修复 Boost 1.80 在 Clang 21 下的越界枚举常量错误。
   不再使用新版 Clang 已移除的 `-Wno-enum-constexpr-conversion` 开关。
+- macOS 的 gperf 3.1 源码改用 GNU HTTPS 下载地址及官方镜像，保留原端口的 SHA-512 校验。
 - `patches/harfbuzz-modern-clang.patch` 将 HarfBuzz 5.0.1 内部针对旧式回调转换的
   `-Wcast-function-type` 从错误降为告警，其余源码诊断仍保留。
 - `patches/cgal-iterator-bool.patch` 修正 CGAL 5.5.1 三个迭代器的空状态判断，

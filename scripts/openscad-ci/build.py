@@ -126,6 +126,11 @@ def install_dependencies(target, triplet):
     header_patches = [("cgal", "cgal-iterator-bool.patch")]
     if target.startswith("macos"):
         header_patches.append(("boost-mpl", "boost-mpl-lazy-enum-constants.patch"))
+        portfile = vcpkg / "ports/gperf/portfile.cmake"
+        portfile.write_text(replace_once(portfile.read_text(),
+            "    URLS http://ftp.gnu.org/pub/gnu/gperf/gperf-3.1.tar.gz",
+            "    URLS https://ftp.gnu.org/gnu/gperf/gperf-3.1.tar.gz\n"
+            "         https://ftpmirror.gnu.org/gperf/gperf-3.1.tar.gz"))
     for port, patch_name in header_patches:
         portfile = vcpkg / f"ports/{port}/portfile.cmake"
         patch = (HERE / "patches" / patch_name).as_posix()
