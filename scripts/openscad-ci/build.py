@@ -139,8 +139,14 @@ def install_dependencies(target, triplet):
             "https://www.7-zip.org/a/7z2107-extra.7z",
             "https://github.com/ip7z/7zip/releases/download/21.07/7z2107-extra.7z"))
         os.environ["VCPKG_DEFAULT_HOST_TRIPLET"] = "x64-windows"
-        run("cmd", "/c", vcpkg / "bootstrap-vcpkg.bat", "-disableMetrics")
         executable = vcpkg / "vcpkg.exe"
+        # Upgrade only the host tool, preserving the pinned ports and libraries.
+        urllib.request.urlretrieve(
+            "https://github.com/microsoft/vcpkg-tool/releases/download/2026-09-26/vcpkg.exe",
+            executable)
+        if hashlib.sha256(executable.read_bytes()).hexdigest() != "2a4ae1467b9e797964c60c919d057b9e5dc1ec03f4b9632c1150026db25201f2":
+            raise RuntimeError("vcpkg host tool checksum mismatch")
+        os.environ["VCPKG_DISABLE_METRICS"] = "1"
     else:
         os.environ["VCPKG_FORCE_SYSTEM_BINARIES"] = "1"
         run("bash", vcpkg / "bootstrap-vcpkg.sh", "-disableMetrics")
