@@ -21,7 +21,7 @@ SOURCE_TAG = "openscad-2021.01"
 VCPKG_COMMIT = "6f7ffeb18f99796233b958aaaf14ec7bd4fb64b2"
 MESA_VERSION = "24.3.4"
 MESA_SHA256 = "e641ae27191d387599219694560d221b7feaa91c900bcec46bf444218ed66025"
-TARGETS = ("macos-x64", "macos-arm64", "windows-x64", "windows-x86", "windows-arm64")
+TARGETS = ("macos-x64", "macos-arm64")
 
 
 def run(*args, **kwargs):

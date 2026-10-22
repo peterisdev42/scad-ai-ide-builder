@@ -6,11 +6,10 @@ import os
 from pathlib import Path
 import shutil
 import tarfile
-import urllib.request
 import zipfile
 
 from build import (ROOT, HERE, SOURCE_COMMIT, SOURCE_TAG, TARGETS, VCPKG_COMMIT,
-                   archive_source, output, MESA_VERSION, MESA_SHA256)
+                   archive_source, output)
 
 
 def verify_assets(dist):
@@ -53,10 +52,6 @@ def main():
         "mcad_commit": output("git", "-C", repo / "libraries/MCAD", "rev-parse", "HEAD"),
         "vcpkg_commit": VCPKG_COMMIT, "builder_commit": os.environ["GITHUB_SHA"],
     }, indent=2) + "\n")
-    mesa = sources / f"mesa-{MESA_VERSION}.tar.xz"
-    urllib.request.urlretrieve(f"https://archive.mesa3d.org/{mesa.name}", mesa)
-    if hashlib.sha256(mesa.read_bytes()).hexdigest() != MESA_SHA256:
-        raise RuntimeError("Mesa source checksum mismatch")
     shutil.make_archive(str(dist / sources.name), "gztar", sources.parent, sources.name)
     checksums = []
     for archive in sorted(dist.iterdir()):
@@ -66,16 +61,14 @@ def main():
     (ROOT / ".build/release-notes.md").write_text(
         "OpenSCAD **2021.01** headless CLI, with OpenGL and OpenCSG enabled.\n\n"
         "| OS | Architectures |\n|---|---|\n"
-        "| macOS 11+ | Intel x64, Apple Silicon ARM64 |\n"
-        "| Windows | x64, x86, ARM64 |\n\n"
-        "macOS and Windows native CLI packages. "
+        "| macOS 11+ | Intel x64, Apple Silicon ARM64 |\n\n"
+        "macOS native CLI packages. "
         "Extract the full archive, then run `bin/openscad`. "
-        "macOS uses native offscreen OpenGL; Windows bundles Mesa softpipe for offscreen WGL. "
-        "On Windows run `bin/openscad.exe`.\n\n"
+        "macOS uses native offscreen OpenGL.\n\n"
         "Every package passed STL export, OpenCSG preview PNG, and CGAL-rendered PNG checks "
         "after relocation. Fonts and MCAD are included. These builds omit optional 3MF I/O.\n\n"
         f"OpenSCAD source: `{SOURCE_TAG}` (`{SOURCE_COMMIT}`). "
-        "The source asset includes OpenSCAD, MCAD, Mesa and build scripts/compatibility patches. "
+        "The source asset includes OpenSCAD, MCAD and build scripts/compatibility patches. "
         f"Dependencies use vcpkg `{VCPKG_COMMIT}`; "
         "Dependency licenses are included in each package.\n\n"
         "Use `SHA256SUMS` to verify downloads. See each package's README for runtime requirements.\n")
