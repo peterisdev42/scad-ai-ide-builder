@@ -78,6 +78,13 @@ def install_dependencies(target, triplet):
         patch = (HERE / "patches" / patch_name).as_posix()
         portfile.write_text(replace_once(portfile.read_text(), "    PATCHES\n",
                                         f'    PATCHES\n        "{patch}"\n'))
+    # The historical gmplib download host times out on GitHub runners.
+    # GNU distributes the exact same archive; keep the port's SHA512 check.
+    portfile = vcpkg / "ports/gmp/portfile.cmake"
+    portfile.write_text(replace_once(portfile.read_text(),
+        "    URLS https://gmplib.org/download/gmp/gmp-6.2.1.tar.xz",
+        "    URLS https://ftp.gnu.org/gnu/gmp/gmp-6.2.1.tar.xz\n"
+        "         https://gmplib.org/download/gmp/gmp-6.2.1.tar.xz"))
     triplet_dir = HERE / "triplets"
     if not (triplet_dir / f"{triplet}.cmake").is_file():
         raise RuntimeError(f"Missing pinned triplet: {triplet}")
