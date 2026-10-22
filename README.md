@@ -34,3 +34,18 @@ npm run dev:vscode
 ```
 
 `working-tree` 会复制子模块当前源码（包含未提交修改）到临时构建工作树，再打包并装配到 Dev Stage。默认配置仍从固定 Tag 构建；`submodule` 只读取子模块当前提交，不包含未提交改动。
+
+## Preview 与 SCAD AI IDE 手动双向同步
+
+两份插件保持独立，只在手动运行命令时同步源码。工具保留两边已有的宿主适配，用各自的历史基线进行三方合并；冲突不会直接覆盖源码。
+
+```sh
+npm run preview:sync -- status
+npm run preview:sync -- to-ide       # 外部 Preview → IDE，生成审阅计划
+npm run preview:sync -- to-preview   # IDE → 外部 Preview，生成审阅计划
+npm run preview:sync -- apply <计划ID>
+```
+
+也可在方向命令后加 `--apply`，无冲突时直接应用。同步完成后检查双方 Git diff，并运行目标插件的编译与测试。初始同步基线已建立，后续无需重新 init。
+
+同步工具和基线由独立插件维护，位于 `sources/scad-ai-ide/scripts/preview-sync/` 和 `sources/scad-ai-ide/.preview-sync/`。上述 Builder 命令仅转发到插件，也可在插件根目录直接运行相同命令。独立克隆时可通过 `PREVIEW_SYNC_PREVIEW_ROOT` 指定外部 Preview 仓库。范围、冲突处理和基线版本控制见 [Preview 同步说明](sources/scad-ai-ide/scripts/preview-sync/README.md)。

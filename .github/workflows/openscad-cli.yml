@@ -1,0 +1,170 @@
+name: Package OpenSCAD CLI
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/openscad-cli.yml
+      - scripts/openscad-ci/**
+
+permissions:
+  contents: read
+
+concurrency:
+  group: openscad-cli-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  OPENSCAD_TAG: openscad-2021.01
+  OPENSCAD_COMMIT: 92350eba8ce749ddc1d04c2191c65a156a7f07ef
+  VCPKG_COMMIT: 6f7ffeb18f99796233b958aaaf14ec7bd4fb64b2
+
+jobs:
+  validate:
+    name: Validate packaging and release gates
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: peterisdev42/openscad
+          ref: openscad-2021.01
+          path: sources/openscad
+      - run: python3 -m unittest discover -s scripts/openscad-ci -p 'test_*.py' -v
+      - run: bash -n scripts/openscad-ci/linux.sh
+
+  build:
+    name: ${{ matrix.target }}
+    needs: validate
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { target: linux-x64, runner: ubuntu-22.04, platform: linux/amd64 }
+          - { target: linux-arm64, runner: ubuntu-22.04-arm, platform: linux/arm64 }
+          - { target: linux-armv7, runner: ubuntu-22.04, platform: linux/arm/v7 }
+          - { target: macos-x64, runner: macos-15-intel, triplet: x64-osx }
+          - { target: macos-arm64, runner: macos-15, triplet: arm64-osx }
+          - { target: windows-x64, runner: windows-2022, triplet: x64-windows, msvc: x64 }
+          - { target: windows-x86, runner: windows-2022, triplet: x86-windows, msvc: x64_x86 }
+          - { target: windows-arm64, runner: windows-11-arm, triplet: arm64-windows, msvc: x64_arm64 }
+    steps:
+      - uses: actions/checkout@v4
+      # Only fetch this source and MCAD, not the builder's other large submodules.
+      - uses: actions/checkout@v4
+        with:
+          repository: peterisdev42/openscad
+          ref: openscad-2021.01
+          path: sources/openscad
+          submodules: recursive
+      - name: Verify immutable source revision
+        shell: bash
+        run: test "$(git -C sources/openscad rev-parse HEAD)" = "$OPENSCAD_COMMIT"
+      - uses: docker/setup-qemu-action@v3
+        if: matrix.target == 'linux-armv7'
+        with:
+          platforms: arm
+      - name: Build, relocate, and test Linux package (Ubuntu 22.04 ABI)
+        if: runner.os == 'Linux'
+        env:
+          TARGET: ${{ matrix.target }}
+          PLATFORM: ${{ matrix.platform }}
+        run: |
+          docker run --rm --platform "$PLATFORM" \
+            -v "$GITHUB_WORKSPACE:/work" -w /work \
+            -e TARGET -e OPENSCAD_TAG -e OPENSCAD_COMMIT \
+            ubuntu:22.04 bash scripts/openscad-ci/linux.sh
+      - uses: actions/setup-python@v5
+        if: runner.os != 'Linux'
+        with:
+          python-version: '3.11'
+      - uses: ilammy/msvc-dev-cmd@v1
+        if: runner.os == 'Windows'
+        with:
+          arch: ${{ matrix.msvc }}
+          vsversion: '2022'
+      - name: Install macOS build tools
+        if: runner.os == 'macOS'
+        run: |
+          brew install bison flex pkg-config autoconf automake libtool
+          echo "$(brew --prefix bison)/bin" >> "$GITHUB_PATH"
+          echo "$(brew --prefix flex)/bin" >> "$GITHUB_PATH"
+      - name: Install Windows parser and pkg-config tools
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: choco install winflexbison3 pkgconfiglite --no-progress -y
+      - name: Install pinned build tools
+        if: runner.os != 'Linux'
+        run: python -m pip install cmake==3.31.6 ninja==1.11.1.3 meson==1.7.0 Mako==1.3.9 PyYAML==6.0.2 packaging==24.2
+      - uses: actions/checkout@v4
+        if: runner.os != 'Linux'
+        with:
+          repository: microsoft/vcpkg
+          ref: 6f7ffeb18f99796233b958aaaf14ec7bd4fb64b2
+          path: .build/vcpkg
+      - uses: actions/cache@v4
+        if: runner.os != 'Linux'
+        with:
+          path: .build/vcpkg-cache
+          key: openscad-deps-v1-${{ matrix.target }}-${{ env.VCPKG_COMMIT }}-${{ hashFiles('scripts/openscad-ci/vcpkg.json', 'scripts/openscad-ci/triplets/**') }}
+      - name: Build dependencies, CLI, and software OpenGL; test relocated package
+        if: runner.os != 'Linux'
+        env:
+          TARGET: ${{ matrix.target }}
+          TRIPLET: ${{ matrix.triplet }}
+          VCPKG_BINARY_SOURCES: clear;files,${{ github.workspace }}/.build/vcpkg-cache,readwrite
+        run: python scripts/openscad-ci/build.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: openscad-cli-${{ matrix.target }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 14
+      - name: Upload diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs-${{ matrix.target }}
+          path: |
+            .build/**/*.log
+            .build/**/CMakeCache.txt
+          if-no-files-found: ignore
+
+  release:
+    name: Publish GitHub Release
+    needs: build
+    # Publishing is restricted to the default branch; other branches can build artifacts.
+    if: github.ref_name == github.event.repository.default_branch
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: peterisdev42/openscad
+          ref: openscad-2021.01
+          path: sources/openscad
+          submodules: recursive
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: openscad-cli-*
+          path: dist
+          merge-multiple: true
+      - name: Prepare source archive and verify release assets
+        run: python3 scripts/openscad-ci/release.py
+      - name: Publish all verified packages
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: openscad-cli-2021.01
+        run: |
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" dist/* --clobber
+            gh release edit "$RELEASE_TAG" --notes-file .build/release-notes.md
+          else
+            gh release create "$RELEASE_TAG" dist/* \
+              --target "$GITHUB_SHA" --title "OpenSCAD 2021.01 headless CLI" \
+              --notes-file .build/release-notes.md --latest=false
+          fi

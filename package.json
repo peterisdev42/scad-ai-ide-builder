@@ -17,7 +17,9 @@
     "dev:vscode:reset": "npm run reset:vscode && npm run dev:vscode",
     "watch:vscode": "cd sources/vscode && npm run watch",
     "build:extensions": "bash scripts/build-extensions.sh",
-    "stage:extensions": "bash scripts/stage-extensions.sh .dev/stage/extensions"
+    "stage:extensions": "bash scripts/stage-extensions.sh .dev/stage/extensions",
+    "preview:sync": "npm --prefix sources/scad-ai-ide run preview:sync --",
+    "test:preview-sync": "npm --prefix sources/scad-ai-ide run test:preview-sync"
   },
   "repository": {
     "type": "git",

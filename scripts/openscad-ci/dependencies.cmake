@@ -1,0 +1,49 @@
+# Dependency discovery for the fixed 2021.01 source. Imported targets carry
+# include directories, library locations, and transitive link requirements.
+find_package(CGAL REQUIRED)
+find_package(Boost 1.36 REQUIRED COMPONENTS filesystem system regex program_options)
+find_package(Eigen3 CONFIG REQUIRED)
+find_package(OpenGL REQUIRED)
+find_package(GLEW REQUIRED)
+find_package(Freetype REQUIRED)
+find_package(LibXml2 REQUIRED)
+find_package(Intl REQUIRED)
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(GLIB2 REQUIRED IMPORTED_TARGET glib-2.0)
+pkg_check_modules(FONTCONFIG REQUIRED IMPORTED_TARGET fontconfig)
+pkg_check_modules(HARFBUZZ REQUIRED IMPORTED_TARGET harfbuzz)
+pkg_check_modules(LIBZIP REQUIRED IMPORTED_TARGET libzip)
+pkg_check_modules(CAIRO REQUIRED IMPORTED_TARGET cairo)
+find_path(OPENCSG_INCLUDE_DIR opencsg.h PATH_SUFFIXES opencsg REQUIRED)
+find_library(OPENCSG_LIBRARY NAMES opencsg REQUIRED)
+find_library(DOUBLE_CONVERSION_LIBRARY NAMES double-conversion REQUIRED)
+include_directories(${OPENCSG_INCLUDE_DIR} ${Intl_INCLUDE_DIRS})
+set(COMMON_LIBRARIES
+  CGAL::CGAL Boost::filesystem Boost::system Boost::regex Boost::program_options
+  Eigen3::Eigen ${OPENCSG_LIBRARY} GLEW::GLEW OpenGL::GL
+  Freetype::Freetype LibXml2::LibXml2 ${Intl_LIBRARIES}
+  PkgConfig::GLIB2 PkgConfig::FONTCONFIG PkgConfig::HARFBUZZ
+  PkgConfig::LIBZIP PkgConfig::CAIRO ${DOUBLE_CONVERSION_LIBRARY})
+add_definitions(-DENABLE_CGAL -DENABLE_OPENCSG -DENABLE_LIBZIP -DENABLE_CAIRO -DEIGEN_DONT_ALIGN)
+# Ubuntu 22.04 provides the matching lib3MF 1.x API. It is optional upstream;
+# the pinned vcpkg baseline has no lib3mf port (macOS/Windows omit 3MF I/O).
+if(UNIX AND NOT APPLE)
+  include(${CMAKE_SOURCE_DIR}/cmake/Modules/FindLib3MF.cmake)
+  if(LIB3MF_FOUND)
+    add_definitions(${LIB3MF_CFLAGS})
+    include_directories(${LIB3MF_INCLUDE_DIRS})
+    list(APPEND COMMON_LIBRARIES ${LIB3MF_LIBRARIES})
+  endif()
+endif()
+if(MSVC)
+  set(WINCOMPAT "--wincompat --nounistd")
+  add_definitions(-D_USE_MATH_DEFINES)
+  add_compile_options(/bigobj /utf-8)
+  list(APPEND COMMON_LIBRARIES gdi32 user32 shell32 advapi32 ole32)
+endif()
+if(APPLE)
+  find_library(APPLICATION_SERVICES_FRAMEWORK ApplicationServices REQUIRED)
+  list(APPEND COMMON_LIBRARIES ${APPLICATION_SERVICES_FRAMEWORK})
+endif()
+find_package(FLEX REQUIRED)
+find_package(BISON REQUIRED)

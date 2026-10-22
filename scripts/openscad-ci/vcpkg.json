@@ -1,0 +1,10 @@
+{
+  "name": "openscad-headless-dependencies",
+  "version-string": "2021.01",
+  "dependencies": [
+    "boost-filesystem", "boost-system", "boost-regex", "boost-program-options",
+    "cgal", "eigen3", "opencsg", "glew", "gmp", "mpfr", "fontconfig",
+    "freetype", "harfbuzz", "glib", "libzip", "libxml2", "double-conversion",
+    "gettext", "cairo", "zlib"
+  ]
+}

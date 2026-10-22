@@ -11,3 +11,12 @@
 [submodule "sources/vscode-openscad-preview"]
 	path = sources/vscode-openscad-preview
 	url = https://github.com/peterisdev42/vscode-openscad-preview.git
+[submodule "sources/openscad-LSP"]
+	path = sources/openscad-LSP
+	url = https://github.com/peterisdev42/openscad-LSP.git
+[submodule "sources/tree-sitter-openscad"]
+	path = sources/tree-sitter-openscad
+	url = https://github.com/openscad/tree-sitter-openscad
+[submodule "sources/scad-ai-ide"]
+	path = sources/scad-ai-ide
+	url = https://github.com/peterisdev42/scad-ai-ide.git

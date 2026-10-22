@@ -1,0 +1,7 @@
+- [openscad](./sources/openscad/): OpenSCAD 官方仓库，用于编译无头 OpenSCAD CLI 用作核心。
+- [tree-sitter-openscad](./sources/tree-sitter-openscad/): OpenSCAD 官方语法规则仓库，用于解析 OpenSCAD 代码。
+- [openscad-LSP](./sources/openscad-LSP/): OpenSCAD LSP 仓库，用于提供 OpenSCAD 代码补全、跳转定义、格式化等功能。
+- [openscad-support-vscode](./sources/openscad-support-vscode/): VSCode 插件，内部由 [tree-sitter-openscad](./sources/tree-sitter-openscad/) 和 [openscad-LSP](./sources/openscad-LSP/) 组成。
+- [vscode-openscad-preview](./sources/vscode-openscad-preview/): VSCode 插件，用于 3D 预览 .scad 文件，依赖 OpenSCAD 核心。
+- [vscode](./sources/vscode/): VSCode 开源版本 Code-OSS 官方仓库。
+- [scad-ai-ide](./sources/scad-ai-ide/): 纯 VSCode 插件版本，定位参考 PlatformIO，无需 VSCode Fork。
