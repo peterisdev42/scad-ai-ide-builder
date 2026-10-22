@@ -9,7 +9,7 @@ import tempfile
 import unittest
 import zipfile
 
-from build import ROOT, SOURCE_COMMIT, SOURCE_TAG, TARGETS, check_architecture, patch_source
+from build import ROOT, SOURCE_COMMIT, SOURCE_TAG, TARGETS, check_architecture, patch_source, package_name
 from release import verify_assets
 
 
@@ -81,7 +81,7 @@ class PackagingTests(unittest.TestCase):
 
     def create_assets(self, dist):
         for target in TARGETS:
-            name = f"openscad-cli-2021.01-{target}"
+            name = package_name(target)
             metadata = json.dumps({"target": target, "commit": SOURCE_COMMIT,
                                    "headless": True, "opengl": True, "nullgl": False}).encode()
             if target.startswith("windows"):
@@ -103,8 +103,19 @@ class PackagingTests(unittest.TestCase):
             with self.assertRaises(FileNotFoundError):
                 verify_assets(dist)
             self.create_assets(dist)
+            self.assertEqual({p.name for p in dist.iterdir() if not p.name.endswith('.sha256')}, {
+                'openscad-cli-macos-arm64.tar.gz', 'openscad-cli-macos-x86_64.tar.gz',
+                'openscad-cli-windows-arm64.zip', 'openscad-cli-windows-x86_64.zip',
+                'openscad-cli-windows-x86.zip',
+            })
             verify_assets(dist)
-            archive = dist / "openscad-cli-2021.01-macos-arm64.tar.gz"
+            windows_arm64 = dist / 'openscad-cli-windows-arm64.zip'
+            content = windows_arm64.read_bytes()
+            windows_arm64.unlink()
+            with self.assertRaises(FileNotFoundError):
+                verify_assets(dist)
+            windows_arm64.write_bytes(content)
+            archive = dist / "openscad-cli-macos-arm64.tar.gz"
             archive.write_bytes(archive.read_bytes() + b"tampered")
             with self.assertRaisesRegex(RuntimeError, "Invalid checksum"):
                 verify_assets(dist)

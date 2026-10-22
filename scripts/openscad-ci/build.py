@@ -21,7 +21,11 @@ SOURCE_TAG = "openscad-2021.01"
 VCPKG_COMMIT = "6f7ffeb18f99796233b958aaaf14ec7bd4fb64b2"
 MESA_VERSION = "24.3.4"
 MESA_SHA256 = "e641ae27191d387599219694560d221b7feaa91c900bcec46bf444218ed66025"
-TARGETS = ("macos-x64", "macos-arm64")
+TARGETS = ("macos-x64", "macos-arm64", "windows-x64", "windows-x86", "windows-arm64")
+
+
+def package_name(target):
+    return "openscad-cli-" + target.replace("-x64", "-x86_64")
 
 
 def run(*args, **kwargs):
@@ -113,7 +117,8 @@ def install_dependencies(target, triplet):
     for port, patch_name in (("zlib", "zlib-modern-macos.patch"),
                              ("libpng", "libpng-modern-macos.patch"),
                              ("pixman", "pixman-modern-clang.patch"),
-                             ("harfbuzz", "harfbuzz-modern-clang.patch")):
+                             ("harfbuzz", "harfbuzz-modern-clang.patch"),
+                             ("glew", "glew-default-image-base.patch")):
         portfile = vcpkg / f"ports/{port}/portfile.cmake"
         patch = (HERE / "patches" / patch_name).as_posix()
         portfile.write_text(replace_once(portfile.read_text(), "    PATCHES\n",
@@ -297,7 +302,7 @@ def copy_licenses(package, prefix):
 
 
 def stage(source, build, work, target, prefix, mesa):
-    package = work / f"openscad-cli-2021.01-{target}"
+    package = work / package_name(target)
     package.mkdir()
     bin_dir = package / "bin"
     bin_dir.mkdir()
