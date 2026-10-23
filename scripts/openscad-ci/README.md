@@ -122,3 +122,6 @@ python3 -m unittest discover -s scripts/openscad-ci -p 'test_*.py' -v
 为与未插桩的缓存静态依赖保持一致，关闭 MSVC 的 `vector` / `string` 容器标注；
 保留 ASan 的堆越界、释放后访问和分配/释放不匹配检测，但不检测容器已分配容量内的逻辑越界。
 这是 [MSVC 对混合静态依赖的要求](https://learn.microsoft.com/en-us/cpp/sanitizers/error-container-overflow)。
+填写诊断工作流的 `package_run_id` 可复用该次运行的诊断包，重新执行完整搬移验收；
+无需再次编译。`context_provider` 可对比上游支持的 `wgl` 和 `wgl-old` 离屏上下文。
+复查仍校验源码版本、架构、运行库和所有输出，日志与输出文件保存在单独 artifact 中。

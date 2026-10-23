@@ -594,7 +594,12 @@ def smoke_test(package, target, work):
                      'translate([0,0,5]) linear_extrude(1) text("CLI",size=4,font="Liberation Sans");\n')
     log = test / "smoke.log"
     with log.open("w") as stream:
-        result = run(binary, "--version", env=env, cwd=test, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        try:
+            result = run(binary, "--version", env=env, cwd=test, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        except subprocess.CalledProcessError as error:
+            stream.write(error.stdout or "")
+            stream.flush()
+            raise
         stream.write(result.stdout)
         stream.flush()
         if SOURCE_VERSION not in result.stdout:

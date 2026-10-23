@@ -18,6 +18,18 @@ from release import verify_assets, release_assets, release_notes, publish, RELEA
 
 
 class PackagingTests(unittest.TestCase):
+    def test_smoke_preserves_version_failure_diagnostics(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            error = subprocess.CalledProcessError(1, ['openscad', '--version'],
+                                                 output='AddressSanitizer: startup failure\n')
+            with mock.patch('build.verify_runtime_dependencies'), mock.patch(
+                    'build.run', side_effect=error):
+                with self.assertRaises(subprocess.CalledProcessError) as caught:
+                    smoke_test(root, 'macos-arm64', root)
+            self.assertIs(caught.exception, error)
+            self.assertEqual((root / 'smoke/smoke.log').read_text(), error.stdout)
+
     def test_release_table_links_cover_exactly_five_packages_and_checksums(self):
         import re
         assets = release_assets()
