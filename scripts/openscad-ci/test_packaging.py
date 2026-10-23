@@ -21,18 +21,18 @@ class PackagingTests(unittest.TestCase):
     def test_release_table_links_cover_exactly_five_packages_and_checksums(self):
         import re
         assets = release_assets()
-        self.assertEqual(len(assets), 11)
-        self.assertEqual(len(set(assets)), 11)
+        self.assertEqual(len(assets), 10)
+        self.assertEqual(len(set(assets)), 10)
         self.assertNotIn('SHA256SUMS', assets)
+        self.assertFalse(any('source' in name for name in assets))
         notes = release_notes('example/builder')
         links = re.findall(r'\[([^]]+)\]\(([^)]+)\)', notes)
-        links = [(name, url) for name, url in links if name in assets[:-1]]
         urls = [url for _, url in links]
         self.assertEqual(len(urls), 10)
         base = f'https://github.com/example/builder/releases/download/{RELEASE_TAG}/'
-        self.assertEqual({url.removeprefix(base) for url in urls}, set(assets[:-1]))
+        self.assertEqual({url.removeprefix(base) for url in urls}, set(assets))
         self.assertTrue(all(url.startswith(base) for url in urls))
-        self.assertEqual({name for name, _ in links}, set(assets[:-1]))
+        self.assertEqual({name for name, _ in links}, set(assets))
         self.assertTrue(all(url == base + name for name, url in links))
         self.assertNotIn('Compatibility', notes)
 
@@ -43,7 +43,7 @@ class PackagingTests(unittest.TestCase):
                 (dist / name).touch()
             existing = {'tag_name': RELEASE_TAG}
             current = {'assets': [{'name': name, 'id': i} for i, name in enumerate(release_assets())]
-                       + [{'name': 'obsolete.zip', 'id': 99}]}
+                       + [{'name': 'openscad-cli-2021.01-source.tar.gz', 'id': 99}]}
             with mock.patch('release.verify_assets'), mock.patch(
                     'release.subprocess.check_output', side_effect=[json.dumps([[existing]]), json.dumps(current)]), mock.patch(
                     'release.subprocess.check_call') as command:
@@ -51,7 +51,7 @@ class PackagingTests(unittest.TestCase):
                 calls = [call.args[0] for call in command.call_args_list]
                 self.assertEqual(calls[-1], ['gh', 'api', '--method', 'DELETE',
                                             'repos/example/builder/releases/assets/99'])
-                self.assertNotIn(str(dist / 'obsolete.zip'), calls[0])
+                self.assertNotIn(str(dist / 'openscad-cli-2021.01-source.tar.gz'), calls[0])
             with mock.patch('release.verify_assets'), mock.patch(
                     'release.subprocess.check_output', return_value=json.dumps([[existing]])), mock.patch(
                     'release.subprocess.check_call', side_effect=subprocess.CalledProcessError(1, 'gh')) as command:

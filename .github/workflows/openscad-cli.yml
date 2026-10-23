@@ -151,18 +151,12 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/checkout@v4
-        with:
-          repository: peterisdev42/openscad
-          ref: openscad-2021.01
-          path: sources/openscad
-          submodules: recursive
       - uses: actions/download-artifact@v4
         with:
           pattern: openscad-cli-*
           path: dist
           merge-multiple: true
-      - name: Prepare source archive and verify release assets
+      - name: Verify release assets and prepare notes
         run: python3 scripts/openscad-ci/release.py
       - name: Publish all verified packages
         env:
