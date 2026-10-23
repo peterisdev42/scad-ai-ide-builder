@@ -121,7 +121,12 @@ def patch_modern_source(source):
     start = text.index('add_custom_command(TARGET OpenSCADExe POST_BUILD\n')
     end = text.index('if(APPLE AND NOT APPLE_UNIX)', start)
     text = text[:start] + '# Locale catalogs are compiled during CLI packaging.\n\n' + text[end:]
+    text = replace_once(text, 'find_path(OPENCSG_INCLUDE_DIRS opencsg.h)',
+                        'find_path(OPENCSG_INCLUDE_DIRS opencsg.h PATH_SUFFIXES opencsg)')
     path.write_text(text)
+    path = source / "cmake/Modules/FindOpenCSG.cmake"
+    path.write_text(replace_once(path.read_text(), '            opencsg.h\n',
+                                 '            opencsg.h PATH_SUFFIXES opencsg\n'))
 
 
 def patch_source(source):

@@ -195,10 +195,15 @@ class PackagingTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             source = Path(directory)
             (source / 'CMakeLists.txt').write_text(original)
+            (source / 'cmake/Modules').mkdir(parents=True)
+            (source / 'cmake/Modules/FindOpenCSG.cmake').write_text(subprocess.check_output([
+                'git', '-C', str(ROOT / 'sources/openscad'), 'show',
+                f'{SOURCE_TAG}:cmake/Modules/FindOpenCSG.cmake'], text=True))
             patch_modern_source(source)
             patched = (source / 'CMakeLists.txt').read_text()
             self.assertIn('WIN32_EXECUTABLE OFF', patched)
             self.assertIn('cmake_policy(SET CMP0167 OLD)', patched)
+            self.assertIn('opencsg.h PATH_SUFFIXES opencsg', (source / 'cmake/Modules/FindOpenCSG.cmake').read_text())
             self.assertIn('/SUBSYSTEM:CONSOLE', patched)
             self.assertIn('option(ENABLE_MANIFOLD "Enable Manifold." ON)', patched)
             self.assertIn('option(ENABLE_CGAL "Enable CGAL." ON)', patched)
