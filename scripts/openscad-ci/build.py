@@ -111,6 +111,8 @@ def patch_modern_source(source):
     text = path.read_text()
     text = replace_once(text, 'set(Boost_USE_STATIC_LIBS TRUE)', 'set(Boost_USE_STATIC_LIBS FALSE)')
     text = replace_once(text, 'GLEW::glew)', 'GLEW::GLEW)')
+    # Boost 1.80 uses CMake's FindBoost module, not the newer BoostConfig package.
+    text = replace_once(text, 'cmake_policy(SET CMP0167 NEW)', 'cmake_policy(SET CMP0167 OLD)')
     text = replace_once(text, 'set_property(TARGET OpenSCADExe PROPERTY WIN32_EXECUTABLE ON)',
                         'set_property(TARGET OpenSCADExe PROPERTY WIN32_EXECUTABLE OFF)')
     text = replace_once(text, 'LINK_FLAGS "-subsystem:windows -ENTRY:mainCRTStartup -stack:${STACKSIZE}"',

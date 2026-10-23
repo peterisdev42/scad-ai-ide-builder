@@ -198,6 +198,7 @@ class PackagingTests(unittest.TestCase):
             patch_modern_source(source)
             patched = (source / 'CMakeLists.txt').read_text()
             self.assertIn('WIN32_EXECUTABLE OFF', patched)
+            self.assertIn('cmake_policy(SET CMP0167 OLD)', patched)
             self.assertIn('/SUBSYSTEM:CONSOLE', patched)
             self.assertIn('option(ENABLE_MANIFOLD "Enable Manifold." ON)', patched)
             self.assertIn('option(ENABLE_CGAL "Enable CGAL." ON)', patched)
