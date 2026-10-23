@@ -203,12 +203,20 @@ class PackagingTests(unittest.TestCase):
             (source / 'src/main_wrapper.cc').write_text(subprocess.check_output([
                 'git', '-C', str(ROOT / 'sources/openscad'), 'show',
                 f'{SOURCE_TAG}:src/main_wrapper.cc'], text=True))
+            (source / 'resources').mkdir()
+            for name in ('openscad_win32.rc.in', 'openscad_win32-nightly.rc.in'):
+                (source / 'resources' / name).write_text(subprocess.check_output([
+                    'git', '-C', str(ROOT / 'sources/openscad'), 'show',
+                    f'{SOURCE_TAG}:resources/{name}'], text=True))
             patch_modern_source(source)
+            for path in (source / 'resources').glob('*.rc.in'):
+                self.assertNotIn('RT_MANIFEST', path.read_text())
             wrapper = (source / 'src/main_wrapper.cc').read_text()
             self.assertIn('std::vector<char *> argv8(argc + 1, nullptr)', wrapper)
             self.assertIn('main(argc, argv8.data())', wrapper)
             patched = (source / 'CMakeLists.txt').read_text()
             self.assertIn('/ENTRY:wmainCRTStartup', patched)
+            self.assertIn('target_sources(OpenSCADExe PRIVATE ${RESOURCE_FILES} "${CMAKE_BINARY_DIR}/openscad.manifest")', patched)
             self.assertEqual(patched.count('set(CAIRO_LIBRARIES PkgConfig::CAIRO)'), 2)
             self.assertIn('WIN32_EXECUTABLE OFF', patched)
             self.assertIn('cmake_policy(SET CMP0167 OLD)', patched)

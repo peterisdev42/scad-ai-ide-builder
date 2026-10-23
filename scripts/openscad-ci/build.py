@@ -129,6 +129,15 @@ def patch_modern_source(source):
     # MSVC invokes find_graphics before upstream adds its custom FindOpenCSG module.
     text = replace_once(text, '\nmacro(find_graphics)\n',
                         '\nmacro(find_graphics)\n  list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/Modules")\n')
+    # Do not export the RC source from the static library to the executable.
+    # CMake merges the application manifest with its generated CRT manifest once.
+    text = replace_once(text, 'target_sources(OpenSCADLibInternal PUBLIC ${RESOURCE_FILES})',
+                        'if(WIN32)\n'
+                        '  configure_file("${CMAKE_SOURCE_DIR}/scripts/winmanifest.xml" "${CMAKE_BINARY_DIR}/openscad.manifest" COPYONLY)\n'
+                        '  target_sources(OpenSCADExe PRIVATE ${RESOURCE_FILES} "${CMAKE_BINARY_DIR}/openscad.manifest")\n'
+                        'else()\n'
+                        '  target_sources(OpenSCADLibInternal PUBLIC ${RESOURCE_FILES})\n'
+                        'endif()')
     text = replace_once(text, 'set_property(TARGET OpenSCADExe PROPERTY WIN32_EXECUTABLE ON)',
                         'set_property(TARGET OpenSCADExe PROPERTY WIN32_EXECUTABLE OFF)')
     text = replace_once(text, 'LINK_FLAGS "-subsystem:windows -ENTRY:mainCRTStartup -stack:${STACKSIZE}"',
@@ -149,6 +158,9 @@ def patch_modern_source(source):
                         '  std::vector<char *> argv8(argc + 1, nullptr);\n  std::vector<std::string> argvString(argc);')
     text = replace_once(text, 'return (main(argc, argv8));', 'return (main(argc, argv8.data()));')
     path.write_text(text)
+    for name in ("openscad_win32.rc.in", "openscad_win32-nightly.rc.in"):
+        path = source / "resources" / name
+        path.write_text(replace_once(path.read_text(), '1 RT_MANIFEST "scripts/winmanifest.xml"\n', ''))
 
 
 def patch_source(source):
