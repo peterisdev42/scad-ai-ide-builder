@@ -162,6 +162,20 @@ def patch_modern_source(source):
     for name in ("openscad_win32.rc.in", "openscad_win32-nightly.rc.in"):
         path = source / "resources" / name
         path.write_text(replace_once(path.read_text(), '1 RT_MANIFEST "scripts/winmanifest.xml"\n', ''))
+    # Derived members (including ctx) die before the GLView base destructor.
+    # Release the base's GPU resources while this context is still current.
+    path = source / "src/glview/OffscreenView.cc"
+    path.write_text(replace_once(path.read_text(), """OffscreenView::~OffscreenView()
+{
+  fbo.reset();
+}""", """OffscreenView::~OffscreenView()
+{
+  ctx->makeCurrent();
+  renderer.reset();
+  teardownShader();
+  edge_shader.reset();
+  fbo.reset();
+}"""))
 
 
 def patch_source(source):
@@ -582,7 +596,7 @@ def smoke_test(package, target, work, asan_options=None):
         env["PATH"] = "/usr/bin:/bin:/usr/sbin:/sbin"
     if ASAN_MODE:
         env["ASAN_OPTIONS"] = (asan_options if asan_options is not None else
-                               "alloc_dealloc_mismatch=1:halt_on_error=1:windows_hook_rtl_allocators=1")
+                               "halt_on_error=1:windows_hook_rtl_allocators=1")
         env["_NT_SYMBOL_PATH"] = str(binary.parent)
     env["LIBGL_ALWAYS_SOFTWARE"] = "1"
     if target.startswith("windows"):

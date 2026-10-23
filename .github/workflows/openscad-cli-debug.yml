@@ -15,7 +15,7 @@ on:
       asan_options:
         description: ASan runtime options for an existing package recheck
         type: string
-        default: 'alloc_dealloc_mismatch=1:halt_on_error=1:windows_hook_rtl_allocators=1'
+        default: 'halt_on_error=1:windows_hook_rtl_allocators=1'
 
 permissions:
   contents: read

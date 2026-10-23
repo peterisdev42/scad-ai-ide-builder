@@ -215,6 +215,10 @@ class PackagingTests(unittest.TestCase):
             (source / 'src/main_wrapper.cc').write_text(subprocess.check_output([
                 'git', '-C', str(ROOT / 'sources/openscad'), 'show',
                 f'{SOURCE_TAG}:src/main_wrapper.cc'], text=True))
+            (source / 'src/glview').mkdir()
+            (source / 'src/glview/OffscreenView.cc').write_text(subprocess.check_output([
+                'git', '-C', str(ROOT / 'sources/openscad'), 'show',
+                f'{SOURCE_TAG}:src/glview/OffscreenView.cc'], text=True))
             (source / 'resources').mkdir()
             for name in ('openscad_win32.rc.in', 'openscad_win32-nightly.rc.in'):
                 (source / 'resources' / name).write_text(subprocess.check_output([
