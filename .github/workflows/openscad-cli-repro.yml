@@ -61,6 +61,32 @@ jobs:
           if ($env:PACKAGE_RUN_ID -notmatch '^\d+$') { throw 'Expected a numeric run ID' }
           gh run download $env:PACKAGE_RUN_ID --repo $env:GITHUB_REPOSITORY --name diagnostic-windows-x86-asan --dir .runtime/artifact
           if ($LASTEXITCODE) { throw 'Diagnostic artifact download failed' }
+      - name: Characterize ASan allocation tracking across an uninstrumented DLL
+        shell: pwsh
+        run: |
+          $probe = Join-Path $env:GITHUB_WORKSPACE '.runtime/allocator-probe'
+          New-Item -ItemType Directory -Force $probe | Out-Null
+          Set-Location $probe
+          @'
+          extern "C" __declspec(dllexport) int *allocate_value() { return new int(42); }
+          '@ | Set-Content -Encoding utf8NoBOM allocator.cpp
+          @'
+          extern "C" __declspec(dllimport) int *allocate_value();
+          int main() { int *p = allocate_value(); int value = *p; delete p; return value == 42 ? 0 : 2; }
+          '@ | Set-Content -Encoding utf8NoBOM consumer.cpp
+          cl.exe /nologo /LD /MD /EHsc /O2 allocator.cpp /link /OUT:allocator.dll /IMPLIB:allocator.lib
+          if ($LASTEXITCODE) { throw 'Allocator probe DLL compilation failed' }
+          cl.exe /nologo /MD /EHsc /O2 /fsanitize=address /Zi consumer.cpp allocator.lib /link /DEBUG /INCREMENTAL:NO /OUT:consumer.exe
+          if ($LASTEXITCODE) { throw 'Allocator probe consumer compilation failed' }
+          $env:ASAN_OPTIONS = 'alloc_dealloc_mismatch=1:halt_on_error=1'
+          $output = (& ./consumer.exe 2>&1 | Out-String)
+          $code = $LASTEXITCODE
+          $detail = "Valid cross-DLL new/delete probe exit code: $code`n$output"
+          $detail | Set-Content -Encoding utf8NoBOM probe.log
+          $escaped = $detail.Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
+          Write-Output "::notice title=Cross-DLL allocation probe::$escaped"
+          # This experiment records instrumentation behavior; the package check below decides success.
+          exit 0
       - name: Recheck relocated package without recompilation
         shell: bash
         env:
@@ -104,5 +130,8 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           name: recheck-windows-x86-${{ inputs.context_provider }}
-          path: .runtime/smoke/*
+          path: |
+            .runtime/smoke/*
+            .runtime/allocator-probe/*.cpp
+            .runtime/allocator-probe/probe.log
           if-no-files-found: ignore
