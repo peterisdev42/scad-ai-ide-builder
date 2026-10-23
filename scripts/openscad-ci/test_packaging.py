@@ -14,10 +14,47 @@ import zipfile
 from build import (ROOT, SOURCE_COMMIT, SOURCE_TAG, TARGETS, check_architecture,
                    patch_source, package_name, verify_runtime_dependencies)
 from build import smoke_test, copy_windows_runtime
-from release import verify_assets
+from release import verify_assets, release_assets, release_notes, publish, RELEASE_TAG
 
 
 class PackagingTests(unittest.TestCase):
+    def test_release_table_links_cover_exactly_five_packages_and_checksums(self):
+        import re
+        assets = release_assets()
+        self.assertEqual(len(assets), 11)
+        self.assertEqual(len(set(assets)), 11)
+        self.assertNotIn('SHA256SUMS', assets)
+        notes = release_notes('example/builder')
+        urls = re.findall(r'\[GitHub\]\(([^)]+)\)', notes)
+        self.assertEqual(len(urls), 10)
+        base = f'https://github.com/example/builder/releases/download/{RELEASE_TAG}/'
+        self.assertEqual({url.removeprefix(base) for url in urls}, set(assets[:-1]))
+        self.assertTrue(all(url.startswith(base) for url in urls))
+        self.assertEqual(notes.count('| - |'), 5)
+
+    def test_release_cleanup_only_after_verified_upload(self):
+        with tempfile.TemporaryDirectory() as directory:
+            dist = Path(directory)
+            for name in release_assets():
+                (dist / name).touch()
+            existing = {'tag_name': RELEASE_TAG}
+            current = {'assets': [{'name': name, 'id': i} for i, name in enumerate(release_assets())]
+                       + [{'name': 'obsolete.zip', 'id': 99}]}
+            with mock.patch('release.verify_assets'), mock.patch(
+                    'release.subprocess.check_output', side_effect=[json.dumps([[existing]]), json.dumps(current)]), mock.patch(
+                    'release.subprocess.check_call') as command:
+                publish(dist, dist / 'notes.md', 'example/builder')
+                calls = [call.args[0] for call in command.call_args_list]
+                self.assertEqual(calls[-1], ['gh', 'api', '--method', 'DELETE',
+                                            'repos/example/builder/releases/assets/99'])
+                self.assertNotIn(str(dist / 'obsolete.zip'), calls[0])
+            with mock.patch('release.verify_assets'), mock.patch(
+                    'release.subprocess.check_output', return_value=json.dumps([[existing]])), mock.patch(
+                    'release.subprocess.check_call', side_effect=subprocess.CalledProcessError(1, 'gh')) as command:
+                with self.assertRaises(subprocess.CalledProcessError):
+                    publish(dist, dist / 'notes.md', 'example/builder')
+                self.assertEqual(command.call_count, 1)
+
     def test_windows_runtime_collection_follows_transitive_imports_and_toolset(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

@@ -167,13 +167,4 @@ jobs:
       - name: Publish all verified packages
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: openscad-cli-2021.01
-        run: |
-          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
-            gh release upload "$RELEASE_TAG" dist/* --clobber
-            gh release edit "$RELEASE_TAG" --notes-file .build/release-notes.md
-          else
-            gh release create "$RELEASE_TAG" dist/* \
-              --target "$GITHUB_SHA" --title "OpenSCAD 2021.01 headless CLI" \
-              --notes-file .build/release-notes.md --latest=false
-          fi
+        run: python3 scripts/openscad-ci/release.py --publish

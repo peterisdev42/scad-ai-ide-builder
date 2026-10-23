@@ -15,7 +15,7 @@ Windows 使用 `bin/openscad.exe`，其余参数与 macOS 相同。
 工作流为 `.github/workflows/openscad-cli.yml`（**Package OpenSCAD CLI**）。
 默认分支修改工作流或 `scripts/openscad-ci/` 后自动构建，也可手动 Run workflow。
 其他分支只上传 Actions artifacts；默认分支五种目标均通过后，创建或更新
-`openscad-cli-2021.01` GitHub Release，同名附件会被替换。
+`openscad-cli-2021.01` GitHub Release，标题为 `OpenSCAD CLI 2021.01`，同名附件会被替换。
 使用仓库内置 `GITHUB_TOKEN`，发布 job 具有 `contents: write` 权限。
 同一分支有新提交时，自动取消旧轮次，只验证最新版本。
 
@@ -75,8 +75,10 @@ MSVC CRT 版本匹配编译工具集，按照实际导入递归收集，避免�
 3. 导出 OpenCSG 预览 PNG 和 CGAL 渲染 PNG，检查文件签名与尺寸。
 4. `--info` 确认离屏 OpenGL 可用，无资源丢失或渲染错误。
 
-五种包全部通过后，Release 校验其 SHA-256 和构建元数据，再发布二进制包、逐包校验文件、
-`SHA256SUMS` 以及包含 OpenSCAD、MCAD、Mesa、构建脚本/补丁的源码包。
+五种包全部通过后，Release 校验其 SHA-256 和构建元数据，再发布二进制包、逐包校验文件，
+以及包含 OpenSCAD、MCAD、Mesa、构建脚本/补丁的源码包，共 11 个附件。
+正文提供五种目标的下载和 SHA256 链接表格，以及简要构建参数说明。
+全部新附件上传成功后，自动删除该 Release 中不在上述清单内的旧附件；不发布重复的汇总校验文件。
 
 完整解压后使用：
 
