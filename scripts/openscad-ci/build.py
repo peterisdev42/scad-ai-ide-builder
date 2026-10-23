@@ -662,8 +662,10 @@ def main():
         runtime = Path(shutil.which("cl")).parent / "clang_rt.asan_dynamic-i386.dll"
         if not runtime.is_file():
             raise RuntimeError(f"MSVC AddressSanitizer runtime is missing: {runtime}")
-        options += ["-DCMAKE_CXX_FLAGS=/fsanitize=address /Zi", "-DCMAKE_C_FLAGS=/fsanitize=address /Zi",
-                    "-DCMAKE_EXE_LINKER_FLAGS=/DEBUG /INCREMENTAL:NO"]
+        # Seed sanitizer flags without replacing CMake's MSVC defaults (/EHsc,
+        # /GR, etc.). Clipper2 treats the missing-exception warning as an error.
+        options += ["-DCMAKE_CXX_FLAGS_INIT=/fsanitize=address /Zi", "-DCMAKE_C_FLAGS_INIT=/fsanitize=address /Zi",
+                    "-DCMAKE_EXE_LINKER_FLAGS_INIT=/DEBUG /INCREMENTAL:NO"]
     build = work / "build"
     run("cmake", "-S", source, "-B", build, "-G", "Ninja", "-DCMAKE_BUILD_TYPE=Release",
         "-DHEADLESS=ON", "-DNULLGL=OFF", "-DINFO=OFF", *options)
