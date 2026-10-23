@@ -25,12 +25,16 @@ class PackagingTests(unittest.TestCase):
         self.assertEqual(len(set(assets)), 11)
         self.assertNotIn('SHA256SUMS', assets)
         notes = release_notes('example/builder')
-        urls = re.findall(r'\[GitHub\]\(([^)]+)\)', notes)
+        links = re.findall(r'\[([^]]+)\]\(([^)]+)\)', notes)
+        links = [(name, url) for name, url in links if name in assets[:-1]]
+        urls = [url for _, url in links]
         self.assertEqual(len(urls), 10)
         base = f'https://github.com/example/builder/releases/download/{RELEASE_TAG}/'
         self.assertEqual({url.removeprefix(base) for url in urls}, set(assets[:-1]))
         self.assertTrue(all(url.startswith(base) for url in urls))
-        self.assertEqual(notes.count('| - |'), 5)
+        self.assertEqual({name for name, _ in links}, set(assets[:-1]))
+        self.assertTrue(all(url == base + name for name, url in links))
+        self.assertNotIn('Compatibility', notes)
 
     def test_release_cleanup_only_after_verified_upload(self):
         with tempfile.TemporaryDirectory() as directory:

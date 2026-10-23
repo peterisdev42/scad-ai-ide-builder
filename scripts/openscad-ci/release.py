@@ -59,12 +59,12 @@ def release_assets():
 def release_notes(repository):
     base = f"https://github.com/{repository}/releases/download/{RELEASE_TAG}/"
     lines = [
-        "| OS | Architectures | Download URL | SHA256 | Compatibility |",
-        "| :---: | :---: | :---: | :---: | :---: |",
+        "| OS | Architectures | Download URL | SHA256 |",
+        "| :---: | :---: | :---: | :---: |",
     ]
     for (system, architecture, _), archive in zip(DOWNLOADS, release_assets()[:-1:2]):
-        lines.append(f"| {system} | {architecture} | [GitHub]({base}{archive}) | "
-                     f"[GitHub]({base}{archive}.sha256) | - |")
+        lines.append(f"| {system} | {architecture} | [{archive}]({base}{archive}) | "
+                     f"[{archive}.sha256]({base}{archive}.sha256) |")
     return "\n".join(lines) + (
         f"\n\nOpenSCAD `{VERSION}` · `HEADLESS=ON` · `NULLGL=OFF`. "
         "OpenGL, OpenCSG and CGAL enabled; Qt GUI and optional 3MF I/O disabled. "
