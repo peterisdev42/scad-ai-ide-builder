@@ -79,6 +79,12 @@ jobs:
               raise RuntimeError('Unexpected diagnostic package metadata')
           try:
               smoke_test(package, 'windows-x86', root)
+          except Exception as error:
+              log = root / 'smoke/smoke.log'
+              detail = log.read_text(errors='replace')[-12000:] if log.exists() else ''
+              detail = (detail or str(error)).replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+              print(f'::error title=Packaged CLI runtime failure::{detail}', flush=True)
+              raise
           finally:
               log = root / 'smoke/smoke.log'
               if log.exists():
