@@ -199,11 +199,20 @@ class PackagingTests(unittest.TestCase):
             (source / 'cmake/Modules/FindOpenCSG.cmake').write_text(subprocess.check_output([
                 'git', '-C', str(ROOT / 'sources/openscad'), 'show',
                 f'{SOURCE_TAG}:cmake/Modules/FindOpenCSG.cmake'], text=True))
+            (source / 'src').mkdir()
+            (source / 'src/main_wrapper.cc').write_text(subprocess.check_output([
+                'git', '-C', str(ROOT / 'sources/openscad'), 'show',
+                f'{SOURCE_TAG}:src/main_wrapper.cc'], text=True))
             patch_modern_source(source)
+            wrapper = (source / 'src/main_wrapper.cc').read_text()
+            self.assertIn('std::vector<char *> argv8(argc + 1, nullptr)', wrapper)
+            self.assertIn('main(argc, argv8.data())', wrapper)
             patched = (source / 'CMakeLists.txt').read_text()
+            self.assertIn('/ENTRY:wmainCRTStartup', patched)
             self.assertIn('WIN32_EXECUTABLE OFF', patched)
             self.assertIn('cmake_policy(SET CMP0167 OLD)', patched)
             self.assertIn('add_compile_definitions(BOOST_NO_CXX98_FUNCTION_BASE)', patched)
+            self.assertIn('target_link_libraries(OpenSCADLibInternal PUBLIC ${Intl_LIBRARIES})', patched)
             self.assertIn('macro(find_graphics)\n  list(APPEND CMAKE_MODULE_PATH', patched)
             self.assertIn('opencsg.h PATH_SUFFIXES opencsg', (source / 'cmake/Modules/FindOpenCSG.cmake').read_text())
             self.assertIn('/SUBSYSTEM:CONSOLE', patched)

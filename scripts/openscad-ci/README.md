@@ -85,7 +85,7 @@ MSVC CRT 版本匹配编译工具集，按照实际导入递归收集，避免�
 1. `--version` 确认版本与所选源码 Tag 对应。
 2. 使用 MCAD、布尔运算和文字导出非空 STL。
 3. 导出 OpenCSG 预览 PNG 和 CGAL 渲染 PNG，检查文件签名与尺寸。
-4. TEST4 额外导出 Manifold 渲染 PNG，验证新后端。
+4. TEST4 使用中文文件名验证参数编码，额外导出 Manifold 渲染 PNG，验证新后端。
 5. `--info` 确认离屏 OpenGL 可用，无资源丢失或渲染错误。
 
 五种包全部通过后，Release 校验其 SHA-256 和构建元数据，仅发布五种二进制包及其逐包 SHA256 校验文件，共 10 个附件。

@@ -116,14 +116,18 @@ def patch_modern_source(source):
     # Select Boost 1.80's own typedef-preserving compatibility implementation.
     # libc++ no longer provides std::unary_function in C++17 mode.
     text = replace_once(text, '\nfind_package(PkgConfig)\n',
-                        '\nif(APPLE)\n  add_compile_definitions(BOOST_NO_CXX98_FUNCTION_BASE)\nendif()\n\nfind_package(PkgConfig)\n')
+                        '\nif(APPLE)\n  add_compile_definitions(BOOST_NO_CXX98_FUNCTION_BASE)\n'
+                        '  find_package(Intl REQUIRED)\n'
+                        '  target_include_directories(OpenSCADLibInternal SYSTEM PUBLIC ${Intl_INCLUDE_DIRS})\n'
+                        '  target_link_libraries(OpenSCADLibInternal PUBLIC ${Intl_LIBRARIES})\n'
+                        'endif()\n\nfind_package(PkgConfig)\n')
     # MSVC invokes find_graphics before upstream adds its custom FindOpenCSG module.
     text = replace_once(text, '\nmacro(find_graphics)\n',
                         '\nmacro(find_graphics)\n  list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/Modules")\n')
     text = replace_once(text, 'set_property(TARGET OpenSCADExe PROPERTY WIN32_EXECUTABLE ON)',
                         'set_property(TARGET OpenSCADExe PROPERTY WIN32_EXECUTABLE OFF)')
     text = replace_once(text, 'LINK_FLAGS "-subsystem:windows -ENTRY:mainCRTStartup -stack:${STACKSIZE}"',
-                        'LINK_FLAGS "/SUBSYSTEM:CONSOLE /STACK:${STACKSIZE}"')
+                        'LINK_FLAGS "/SUBSYSTEM:CONSOLE /ENTRY:wmainCRTStartup /STACK:${STACKSIZE}"')
     # stage() compiles locale catalogs with verified tooling on every platform.
     start = text.index('add_custom_command(TARGET OpenSCADExe POST_BUILD\n')
     end = text.index('if(APPLE AND NOT APPLE_UNIX)', start)
@@ -134,6 +138,12 @@ def patch_modern_source(source):
     path = source / "cmake/Modules/FindOpenCSG.cmake"
     path.write_text(replace_once(path.read_text(), '            opencsg.h\n',
                                  '            opencsg.h PATH_SUFFIXES opencsg\n'))
+    path = source / "src/main_wrapper.cc"
+    text = replace_once(path.read_text(), '#include <string>', '#include <string>\n#include <vector>')
+    text = replace_once(text, '  char *argv8[argc + 1];\n  std::string argvString[argc];',
+                        '  std::vector<char *> argv8(argc + 1, nullptr);\n  std::vector<std::string> argvString(argc);')
+    text = replace_once(text, 'return (main(argc, argv8));', 'return (main(argc, argv8.data()));')
+    path.write_text(text)
 
 
 def patch_source(source):
@@ -551,7 +561,7 @@ def smoke_test(package, target, work):
         env["GALLIUM_DRIVER"] = "softpipe"
     test = work / "smoke"
     test.mkdir()
-    model = test / "smoke.scad"
+    model = test / ("unicode-模型.scad" if MODERN_SOURCE else "smoke.scad")
     model.write_text('use <MCAD/boxes.scad>\n'
                      'difference() { roundedBox([20,20,10],2,true); cylinder(h=30,r=4,center=true,$fn=32); }\n'
                      'translate([0,0,5]) linear_extrude(1) text("CLI",size=4,font="Liberation Sans");\n')

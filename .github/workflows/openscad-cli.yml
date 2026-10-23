@@ -23,6 +23,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
+  PYTHONUTF8: '1'
   OPENSCAD_TAG: ${{ inputs.source_tag || 'openscad-2026.10-TEST4' }}
   OPENSCAD_COMMIT: ${{ inputs.source_tag == 'openscad-2021.01' && '41f58fe57c03457a3a8b4dc541ef5654ec3e8c78' || '5a864f17b6b022904004704f64e6168d2cfb8435' }}
   VCPKG_COMMIT: 6f7ffeb18f99796233b958aaaf14ec7bd4fb64b2
