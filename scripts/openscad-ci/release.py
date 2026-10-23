@@ -8,7 +8,7 @@ import sys
 import tarfile
 import zipfile
 
-from build import ROOT, SOURCE_COMMIT, SOURCE_TAG, TARGETS, package_name
+from build import ROOT, SOURCE_COMMIT, SOURCE_TAG, TARGETS, MODERN_SOURCE, package_name
 
 
 def verify_assets(dist):
@@ -27,6 +27,8 @@ def verify_assets(dist):
             with tarfile.open(archive) as stream:
                 metadata = json.load(stream.extractfile(name + "/build-info.json"))
         if (metadata["commit"] != SOURCE_COMMIT or metadata["target"] != target
+                or metadata.get("tag") != SOURCE_TAG
+                or (MODERN_SOURCE and not metadata.get("manifold"))
                 or not metadata["headless"] or not metadata["opengl"] or metadata["nullgl"]):
             raise RuntimeError(f"Unexpected build metadata: {archive}")
 
@@ -62,7 +64,8 @@ def release_notes(repository):
                      f"[{archive}.sha256]({base}{archive}.sha256) |")
     return "\n".join(lines) + (
         f"\n\nOpenSCAD `{VERSION}` · `HEADLESS=ON` · `NULLGL=OFF`. "
-        "OpenGL, OpenCSG and CGAL enabled; Qt GUI and optional 3MF I/O disabled. "
+        f"OpenGL, OpenCSG, CGAL{', Manifold' if MODERN_SOURCE else ''} enabled; "
+        "Qt GUI and optional 3MF I/O disabled. "
         "macOS uses native offscreen OpenGL; Windows bundles Mesa softpipe.\n\n"
         "All third-party runtime dependencies are bundled. Extract the complete archive "
         "and run `bin/openscad` (macOS) or `bin/openscad.exe` (Windows).\n"

@@ -1,4 +1,4 @@
-# OpenSCAD 2021.01 无头 CLI
+# OpenSCAD 无头 CLI
 
 构建 macOS 和 Windows 的原生架构：
 
@@ -13,9 +13,10 @@
 Linux 暂不参与构建。Windows x64/x86 使用 VS 2022，ARM64 使用 VS 2026 中的 v143 14.44 工具集，随包提供原生 Mesa 24.3.4 softpipe 和 MSVC 运行库。
 Windows 使用 `bin/openscad.exe`，其余参数与 macOS 相同。
 工作流为 `.github/workflows/openscad-cli.yml`（**Package OpenSCAD CLI**）。
-默认分支修改工作流或 `scripts/openscad-ci/` 后自动构建，也可手动 Run workflow。
+默认分支修改工作流或 `scripts/openscad-ci/` 后自动构建 `openscad-2026.10-TEST4`。
+手动 Run workflow 可通过 `source_tag` 选择 `openscad-2026.10-TEST4` 或 `openscad-2021.01`。
 其他分支只上传 Actions artifacts；默认分支五种目标均通过后，创建或更新
-`openscad-cli-2021.01` GitHub Release，标题为 `OpenSCAD CLI 2021.01`，同名附件会被替换。
+与所选源码版本对应的 `openscad-cli-<version>` GitHub Release，标题为 `OpenSCAD CLI <version>`，同名附件会被替换。
 使用仓库内置 `GITHUB_TOKEN`，发布 job 具有 `contents: write` 权限。
 创建 Release 时以默认分支名为目标，避免构建期间分支前进后，对旧工作流提交创建标签触发 403。
 Release 标签作为下载入口；实际构建脚本提交以每个包内的 `build-info.json` 为准。
@@ -26,10 +27,19 @@ Release 标签作为下载入口；实际构建脚本提交以每个包内的 `b
 
 ## 固定源码和依赖
 
+- 默认源码 Tag：`openscad-2026.10-TEST4`，固定提交
+  `5a864f17b6b022904004704f64e6168d2cfb8435`。
+  递归检出并归档该提交固定的全部子模块，包含 MCAD、Clipper2 和 Manifold。
+  使用上游 `OpenSCADExe` 目标及依赖发现，保持 CGAL 和 Manifold 两个后端；
+  关闭 GUI、内置 Python、可选 3MF、mimalloc 和 GUI 输入设备驱动。
+  版本字符串显式设为 `2026.10-TEST4`，资源包包含 shaders、templates 和子模块许可证。
+  vcpkg 基线补充 OpenSSL、TBB 及新源码所需的 Boost 组件。
+- 2021.01 的源码 API 补丁仅在选择旧 Tag 时应用，新版使用独立适配，避免混用旧补丁。
+
 - OpenSCAD Tag：`openscad-2021.01`；解引用后的提交为
   `41f58fe57c03457a3a8b4dc541ef5654ec3e8c78`。同时获取固定的 MCAD 子模块。
 - vcpkg：`2022.11.14`，提交 `6f7ffeb18f99796233b958aaaf14ec7bd4fb64b2`。
-  使用旧版 CGAL 和 Boost API，与 2021.01 源码保持兼容。
+  两个源码配置使用同一固定基线；2021.01 保留原有 CGAL 和 Boost 兼容补丁。
 - Windows 宿主使用固定的 vcpkg-tool 2026-09-26 和 MSYS2 下载脚本快照，
   依赖库仍来自上述 2022.11.14 基线；pkgconf 3.0.10 与 WinFlexBison 2.5.25 验证 SHA-256。
 - GLEW 2.2.0 使用链接器默认 DLL 基址，避免旧的 32 位固定基址导致 Windows ARM64 的 LNK1355 错误。
@@ -72,10 +82,11 @@ MSVC CRT 版本匹配编译工具集，按照实际导入递归收集，避免�
 检查 Mach-O / PE 架构后，将实际归档解压到带空格的新路径，隐藏编译目录和 vcpkg 安装目录，
 清除库/字体/模型搜索环境变量，仅保留系统 PATH，执行：
 
-1. `--version` 确认版本为 2021.01。
+1. `--version` 确认版本与所选源码 Tag 对应。
 2. 使用 MCAD、布尔运算和文字导出非空 STL。
 3. 导出 OpenCSG 预览 PNG 和 CGAL 渲染 PNG，检查文件签名与尺寸。
-4. `--info` 确认离屏 OpenGL 可用，无资源丢失或渲染错误。
+4. TEST4 额外导出 Manifold 渲染 PNG，验证新后端。
+5. `--info` 确认离屏 OpenGL 可用，无资源丢失或渲染错误。
 
 五种包全部通过后，Release 校验其 SHA-256 和构建元数据，仅发布五种二进制包及其逐包 SHA256 校验文件，共 10 个附件。
 发布步骤不生成或上传源码压缩包。

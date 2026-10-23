@@ -2,6 +2,14 @@ name: Package OpenSCAD CLI
 
 on:
   workflow_dispatch:
+    inputs:
+      source_tag:
+        description: OpenSCAD source tag to build and release
+        type: choice
+        default: openscad-2026.10-TEST4
+        options:
+          - openscad-2026.10-TEST4
+          - openscad-2021.01
   push:
     paths:
       - .github/workflows/openscad-cli.yml
@@ -15,8 +23,8 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  OPENSCAD_TAG: openscad-2021.01
-  OPENSCAD_COMMIT: 41f58fe57c03457a3a8b4dc541ef5654ec3e8c78
+  OPENSCAD_TAG: ${{ inputs.source_tag || 'openscad-2026.10-TEST4' }}
+  OPENSCAD_COMMIT: ${{ inputs.source_tag == 'openscad-2021.01' && '41f58fe57c03457a3a8b4dc541ef5654ec3e8c78' || '5a864f17b6b022904004704f64e6168d2cfb8435' }}
   VCPKG_COMMIT: 6f7ffeb18f99796233b958aaaf14ec7bd4fb64b2
 
 jobs:
@@ -28,7 +36,7 @@ jobs:
       - uses: actions/checkout@v5
         with:
           repository: peterisdev42/openscad
-          ref: openscad-2021.01
+          ref: ${{ env.OPENSCAD_TAG }}
           path: sources/openscad
       - run: python3 -m unittest discover -s scripts/openscad-ci -p 'test_*.py' -v
 
@@ -48,11 +56,11 @@ jobs:
           - { target: windows-arm64, runner: windows-11-arm, triplet: arm64-windows, arch: arm64 }
     steps:
       - uses: actions/checkout@v5
-      # Only fetch this source and MCAD, not the builder's other large submodules.
+      # Fetch only OpenSCAD and its pinned submodules, not the builder's other sources.
       - uses: actions/checkout@v5
         with:
           repository: peterisdev42/openscad
-          ref: openscad-2021.01
+          ref: ${{ env.OPENSCAD_TAG }}
           path: sources/openscad
           submodules: recursive
       - name: Verify immutable source revision

@@ -12,7 +12,7 @@ from unittest import mock
 import zipfile
 
 from build import (ROOT, SOURCE_COMMIT, SOURCE_TAG, TARGETS, check_architecture,
-                   patch_source, package_name, verify_runtime_dependencies)
+                   patch_source, patch_legacy_source, patch_modern_source, MODERN_SOURCE, package_name, verify_runtime_dependencies)
 from build import smoke_test, copy_windows_runtime
 from release import verify_assets, release_assets, release_notes, publish, RELEASE_TAG
 
@@ -152,8 +152,10 @@ class PackagingTests(unittest.TestCase):
             f"{SOURCE_TAG}^{{commit}}"], text=True).strip()
         self.assertEqual(SOURCE_COMMIT, commit)
         workflow = (ROOT / ".github/workflows/openscad-cli.yml").read_text()
-        self.assertIn(f"  OPENSCAD_COMMIT: {commit}\n", workflow)
+        self.assertIn(commit, workflow)
+        self.assertIn("ref: ${{ env.OPENSCAD_TAG }}", workflow)
 
+    @unittest.skipIf(MODERN_SOURCE, "Legacy patch is exercised when selecting openscad-2021.01")
     def test_patch_applies_to_actual_tag_and_rejects_reapplication(self):
         original = subprocess.check_output([
             "git", "-C", str(ROOT / "sources/openscad"), "show",
@@ -186,6 +188,24 @@ class PackagingTests(unittest.TestCase):
             with self.assertRaises((RuntimeError, ValueError)):
                 patch_source(source)
 
+    @unittest.skipUnless(MODERN_SOURCE, "Modern target requires the TEST4 source checkout")
+    def test_modern_patch_preserves_backends_and_uses_console_target(self):
+        original = subprocess.check_output([
+            "git", "-C", str(ROOT / "sources/openscad"), "show", f"{SOURCE_TAG}:CMakeLists.txt"], text=True)
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory)
+            (source / 'CMakeLists.txt').write_text(original)
+            patch_modern_source(source)
+            patched = (source / 'CMakeLists.txt').read_text()
+            self.assertIn('WIN32_EXECUTABLE OFF', patched)
+            self.assertIn('/SUBSYSTEM:CONSOLE', patched)
+            self.assertIn('option(ENABLE_MANIFOLD "Enable Manifold." ON)', patched)
+            self.assertIn('option(ENABLE_CGAL "Enable CGAL." ON)', patched)
+            self.assertNotIn('add_custom_command(TARGET OpenSCADExe POST_BUILD', patched)
+            self.assertNotIn('ci-dependencies.cmake', patched)
+            with self.assertRaises((RuntimeError, ValueError)):
+                patch_modern_source(source)
+
     def test_architecture_detection_rejects_mislabeled_artifacts(self):
         with tempfile.TemporaryDirectory() as directory:
             executable = Path(directory) / "binary"
@@ -214,7 +234,7 @@ class PackagingTests(unittest.TestCase):
     def create_assets(self, dist):
         for target in TARGETS:
             name = package_name(target)
-            metadata = json.dumps({"target": target, "commit": SOURCE_COMMIT,
+            metadata = json.dumps({"target": target, "commit": SOURCE_COMMIT, "tag": SOURCE_TAG, "manifold": MODERN_SOURCE,
                                    "headless": True, "opengl": True, "nullgl": False}).encode()
             if target.startswith("windows"):
                 archive = dist / (name + ".zip")

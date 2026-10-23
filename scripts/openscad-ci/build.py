@@ -16,8 +16,14 @@ import urllib.request
 ROOT = Path(__file__).resolve().parents[2]
 HERE = Path(__file__).resolve().parent
 # The annotated tag object has a different SHA; pin its peeled commit.
-SOURCE_COMMIT = "41f58fe57c03457a3a8b4dc541ef5654ec3e8c78"
-SOURCE_TAG = "openscad-2021.01"
+SOURCE_REVISIONS = {
+    "openscad-2021.01": "41f58fe57c03457a3a8b4dc541ef5654ec3e8c78",
+    "openscad-2026.10-TEST4": "5a864f17b6b022904004704f64e6168d2cfb8435",
+}
+SOURCE_TAG = os.environ.get("OPENSCAD_TAG", "openscad-2026.10-TEST4")
+SOURCE_COMMIT = SOURCE_REVISIONS[SOURCE_TAG]
+SOURCE_VERSION = SOURCE_TAG.removeprefix("openscad-")
+MODERN_SOURCE = SOURCE_TAG != "openscad-2021.01"
 VCPKG_COMMIT = "6f7ffeb18f99796233b958aaaf14ec7bd4fb64b2"
 MESA_VERSION = "24.3.4"
 MESA_SHA256 = "e641ae27191d387599219694560d221b7feaa91c900bcec46bf444218ed66025"
@@ -43,7 +49,7 @@ def replace_once(text, old, new):
     return text.replace(old, new, 1)
 
 
-def patch_source(source):
+def patch_legacy_source(source):
     """Build-only compatibility patch; leave the checked-out submodule untouched."""
     path = source / "CMakeLists.txt"
     text = path.read_text()
@@ -97,6 +103,30 @@ def patch_source(source):
     text = replace_once(text, "CGAL::Triangulation_2_filtered_projection_traits_3<K>",
                         "CGAL::Projection_traits_3<K>")
     path.write_text(text)
+
+
+def patch_modern_source(source):
+    """Adapt the upstream headless target without the 2021.01 API patches."""
+    path = source / "CMakeLists.txt"
+    text = path.read_text()
+    text = replace_once(text, 'set(Boost_USE_STATIC_LIBS TRUE)', 'set(Boost_USE_STATIC_LIBS FALSE)')
+    text = replace_once(text, 'GLEW::glew)', 'GLEW::GLEW)')
+    text = replace_once(text, 'set_property(TARGET OpenSCADExe PROPERTY WIN32_EXECUTABLE ON)',
+                        'set_property(TARGET OpenSCADExe PROPERTY WIN32_EXECUTABLE OFF)')
+    text = replace_once(text, 'LINK_FLAGS "-subsystem:windows -ENTRY:mainCRTStartup -stack:${STACKSIZE}"',
+                        'LINK_FLAGS "/SUBSYSTEM:CONSOLE /STACK:${STACKSIZE}"')
+    # stage() compiles locale catalogs with verified tooling on every platform.
+    start = text.index('add_custom_command(TARGET OpenSCADExe POST_BUILD\n')
+    end = text.index('if(APPLE AND NOT APPLE_UNIX)', start)
+    text = text[:start] + '# Locale catalogs are compiled during CLI packaging.\n\n' + text[end:]
+    path.write_text(text)
+
+
+def patch_source(source):
+    if MODERN_SOURCE:
+        patch_modern_source(source)
+    else:
+        patch_legacy_source(source)
 
 
 def archive_source(repo, destination):
@@ -385,7 +415,7 @@ def stage(source, build, work, target, prefix, mesa):
         resources = package / "share/openscad"
         resources.mkdir(parents=True)
     check_architecture(binary, target)
-    for directory in ("color-schemes", "libraries", "fonts", "examples"):
+    for directory in ("color-schemes", "libraries", "fonts", "examples", *(("shaders", "templates") if MODERN_SOURCE else ())):
         shutil.copytree(source / directory, resources / directory, dirs_exist_ok=True)
     # localization_init() expects the resource directory, and gettext needs
     # compiled catalogs rather than the source .po files.
@@ -413,6 +443,12 @@ def stage(source, build, work, target, prefix, mesa):
     shutil.copy2(source / "COPYING", package / "COPYING")
     shutil.copy2(HERE / "README.md", package / "README.md")
     copy_licenses(package, prefix)
+    if MODERN_SOURCE:
+        for module in (source / "submodules").iterdir():
+            if module.is_dir():
+                for license_file in module.glob("*"):
+                    if license_file.is_file() and license_file.name.lower().startswith(("license", "copying")):
+                        shutil.copy2(license_file, package / "licenses" / (module.name + "-" + license_file.name))
     (package / "build-info.json").write_text(json.dumps({
         "tag": SOURCE_TAG, "commit": SOURCE_COMMIT, "target": target,
         "headless": True, "opengl": True, "nullgl": False,
@@ -420,6 +456,7 @@ def stage(source, build, work, target, prefix, mesa):
         "mesa": MESA_VERSION if mesa else None,
         "msvc_runtime": runtime_version,
         "lib3mf": target.startswith("linux"),
+        "manifold": MODERN_SOURCE,
         "builder_commit": os.environ.get("GITHUB_SHA"),
     }, indent=2) + "\n")
     if target.startswith("macos"):
@@ -509,10 +546,14 @@ def smoke_test(package, target, work):
         result = run(binary, "--version", env=env, cwd=test, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
         stream.write(result.stdout)
         stream.flush()
-        if "2021.01" not in result.stdout:
+        if SOURCE_VERSION not in result.stdout:
             raise RuntimeError("Packaged executable reports the wrong version")
-        for name, flags in (("model.stl", []), ("preview.png", ["--preview", "--imgsize=256,256"]),
-                            ("render.png", ["--render=cgal", "--imgsize=256,256"])):
+        checks = [("model.stl", []), ("preview.png", ["--preview", "--imgsize=256,256"]),
+                  ("render.png", (["--backend=CGAL", "--render"] if MODERN_SOURCE else ["--render=cgal"])
+                   + ["--imgsize=256,256"])]
+        if MODERN_SOURCE:
+            checks.append(("manifold.png", ["--backend=Manifold", "--render", "--imgsize=256,256"]))
+        for name, flags in checks:
             run(binary, *flags, "-o", test / name, model, env=env, cwd=test, stdout=stream, stderr=subprocess.STDOUT)
             artifact = test / name
             if not artifact.is_file() or artifact.stat().st_size < 1024:
@@ -532,12 +573,16 @@ def main():
         raise RuntimeError(f"Unsupported target: {target}")
     repo = ROOT / "sources/openscad"
     if output("git", "-C", repo, "rev-parse", "HEAD") != SOURCE_COMMIT:
-        raise RuntimeError("Only openscad-2021.01 at its pinned commit is supported")
+        raise RuntimeError(f"Expected {SOURCE_TAG} at {SOURCE_COMMIT}")
     work = ROOT / ".build" / target
     work.mkdir(parents=True)
     source = work / "source"
     archive_source(repo, source)
-    archive_source(repo / "libraries/MCAD", source / "libraries/MCAD")
+    for line in output("git", "-C", repo, "submodule", "status", "--recursive").splitlines():
+        if line[0] in "-+U":
+            raise RuntimeError(f"Submodule is not at its pinned commit: {line}")
+        path = line.split()[1]
+        archive_source(repo / path, source / path)
     patch_source(source)
     prefix = mesa = None
     options = []
@@ -553,11 +598,18 @@ def main():
         options += [f"-DFLEX_EXECUTABLE={shutil.which('win_flex')}",
                     f"-DBISON_EXECUTABLE={shutil.which('win_bison')}"]
         mesa = build_mesa(work, prefix)
+    if MODERN_SOURCE:
+        options += [f"-DOPENSCAD_VERSION={SOURCE_VERSION}", f"-DOPENSCAD_COMMIT={SOURCE_COMMIT[:8]}",
+                    "-DENABLE_TESTS=OFF", "-DENABLE_GUI_TESTS=OFF", "-DUSE_QT6=OFF",
+                    "-DUSE_MIMALLOC=OFF", "-DENABLE_MANIFOLD=ON", "-DENABLE_CGAL=ON",
+                    "-DCMAKE_REQUIRE_FIND_PACKAGE_Lib3MF=OFF", "-DCMAKE_DISABLE_FIND_PACKAGE_Lib3MF=ON",
+                    "-DENABLE_HIDAPI=OFF", "-DENABLE_SPNAV=OFF", "-DENABLE_GAMEPAD=OFF",
+                    "-DCMAKE_OSX_DEPLOYMENT_TARGET=11.0"]
     build = work / "build"
     run("cmake", "-S", source, "-B", build, "-G", "Ninja", "-DCMAKE_BUILD_TYPE=Release",
         "-DHEADLESS=ON", "-DNULLGL=OFF", "-DINFO=OFF", *options)
     # Report all translation-unit failures together instead of stopping at the first.
-    run("cmake", "--build", build, "--target", "OpenSCAD", "--parallel", "2", "--", "-k", "0")
+    run("cmake", "--build", build, "--target", "OpenSCADExe" if MODERN_SOURCE else "OpenSCAD", "--parallel", "2", "--", "-k", "0")
     package = stage(source, build, work, target, prefix, mesa)
     dist = ROOT / "dist"
     dist.mkdir(exist_ok=True)
