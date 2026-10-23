@@ -50,14 +50,26 @@ jobs:
           ref: 6f7ffeb18f99796233b958aaaf14ec7bd4fb64b2
           path: .build/vcpkg
       - uses: actions/cache/restore@v5
+        id: dependency-cache
         with:
-          path: .build/vcpkg-cache
-          key: diagnostic-deps-${{ github.run_id }}
+          # Cache versions include the path list; match the production workflow.
+          path: |
+            .build/vcpkg-cache
+            .build/ccache
+          key: openscad-deps-v2-windows-x86-${{ env.VCPKG_COMMIT }}-${{ hashFiles('scripts/openscad-ci/vcpkg.json', 'scripts/openscad-ci/triplets/**') }}-diagnostic-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: openscad-deps-v2-windows-x86-${{ env.VCPKG_COMMIT }}-
       - name: Reproduce with AddressSanitizer
         env:
           VCPKG_BINARY_SOURCES: clear;files,${{ github.workspace }}/.build/vcpkg-cache,readwrite
         run: python scripts/openscad-ci/build.py
+      - name: Preserve dependency cache
+        if: always()
+        uses: actions/cache/save@v5
+        with:
+          path: |
+            .build/vcpkg-cache
+            .build/ccache
+          key: ${{ steps.dependency-cache.outputs.cache-primary-key }}
       - name: Preserve diagnostics and executable
         if: always()
         uses: actions/upload-artifact@v6
