@@ -12,6 +12,10 @@ on:
         type: choice
         default: wgl
         options: [wgl, wgl-old]
+      asan_options:
+        description: ASan runtime options for an existing package recheck
+        type: string
+        default: 'alloc_dealloc_mismatch=1:halt_on_error=1:windows_hook_rtl_allocators=1'
 
 permissions:
   contents: read
@@ -34,6 +38,7 @@ jobs:
     with:
       package_run_id: ${{ inputs.package_run_id }}
       context_provider: ${{ inputs.context_provider }}
+      asan_options: ${{ inputs.asan_options }}
   diagnose:
     if: inputs.package_run_id == ''
     runs-on: windows-2022

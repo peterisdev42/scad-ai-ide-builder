@@ -9,6 +9,9 @@ on:
       context_provider:
         type: string
         default: wgl
+      asan_options:
+        type: string
+        default: 'alloc_dealloc_mismatch=1:halt_on_error=1:windows_hook_rtl_allocators=1'
   workflow_dispatch:
     inputs:
       package_run_id:
@@ -20,6 +23,10 @@ on:
         type: choice
         default: wgl
         options: [wgl, wgl-old]
+      asan_options:
+        description: ASan runtime options
+        type: string
+        default: 'alloc_dealloc_mismatch=1:halt_on_error=1:windows_hook_rtl_allocators=1'
 
 permissions:
   contents: read
@@ -58,9 +65,11 @@ jobs:
         shell: bash
         env:
           OPENSCAD_OFFSCREEN_CONTEXT: ${{ inputs.context_provider }}
+          DIAGNOSTIC_ASAN_OPTIONS: ${{ inputs.asan_options }}
         run: |
           python - <<'PY'
           import json
+          import os
           from pathlib import Path
           import shutil
           import sys
@@ -78,7 +87,7 @@ jobs:
                   or info.get('commit') != SOURCE_COMMIT or not info.get('asan')):
               raise RuntimeError('Unexpected diagnostic package metadata')
           try:
-              smoke_test(package, 'windows-x86', root)
+              smoke_test(package, 'windows-x86', root, asan_options=os.environ['DIAGNOSTIC_ASAN_OPTIONS'])
           except Exception as error:
               log = root / 'smoke/smoke.log'
               detail = log.read_text(errors='replace')[-12000:] if log.exists() else ''

@@ -567,7 +567,7 @@ def verify_runtime_dependencies(package, target):
     print(f"Verified bundled runtime dependencies: {target}", flush=True)
 
 
-def smoke_test(package, target, work):
+def smoke_test(package, target, work, asan_options=None):
     verify_runtime_dependencies(package, target)
     binary = package / "bin" / ("openscad.exe" if target.startswith("windows") else "openscad")
     env = os.environ.copy()
@@ -581,7 +581,8 @@ def smoke_test(package, target, work):
     else:
         env["PATH"] = "/usr/bin:/bin:/usr/sbin:/sbin"
     if ASAN_MODE:
-        env["ASAN_OPTIONS"] = "alloc_dealloc_mismatch=1:halt_on_error=1:windows_hook_rtl_allocators=1"
+        env["ASAN_OPTIONS"] = (asan_options if asan_options is not None else
+                               "alloc_dealloc_mismatch=1:halt_on_error=1:windows_hook_rtl_allocators=1")
         env["_NT_SYMBOL_PATH"] = str(binary.parent)
     env["LIBGL_ALWAYS_SOFTWARE"] = "1"
     if target.startswith("windows"):
