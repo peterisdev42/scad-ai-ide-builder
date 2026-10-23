@@ -111,6 +111,11 @@ def patch_modern_source(source):
     text = path.read_text()
     text = replace_once(text, 'set(Boost_USE_STATIC_LIBS TRUE)', 'set(Boost_USE_STATIC_LIBS FALSE)')
     text = replace_once(text, 'GLEW::glew)', 'GLEW::GLEW)')
+    if text.count('pkg_check_modules(CAIRO REQUIRED cairo)') != 2:
+        raise RuntimeError("Unexpected upstream Cairo discovery branches")
+    text = text.replace('pkg_check_modules(CAIRO REQUIRED cairo)',
+                        'pkg_check_modules(CAIRO REQUIRED IMPORTED_TARGET cairo)\n'
+                        '    set(CAIRO_LIBRARIES PkgConfig::CAIRO)')
     # Boost 1.80 uses CMake's FindBoost module, not the newer BoostConfig package.
     text = replace_once(text, 'cmake_policy(SET CMP0167 NEW)', 'cmake_policy(SET CMP0167 OLD)')
     # Select Boost 1.80's own typedef-preserving compatibility implementation.

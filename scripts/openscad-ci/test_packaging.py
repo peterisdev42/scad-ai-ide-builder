@@ -209,6 +209,7 @@ class PackagingTests(unittest.TestCase):
             self.assertIn('main(argc, argv8.data())', wrapper)
             patched = (source / 'CMakeLists.txt').read_text()
             self.assertIn('/ENTRY:wmainCRTStartup', patched)
+            self.assertEqual(patched.count('set(CAIRO_LIBRARIES PkgConfig::CAIRO)'), 2)
             self.assertIn('WIN32_EXECUTABLE OFF', patched)
             self.assertIn('cmake_policy(SET CMP0167 OLD)', patched)
             self.assertIn('add_compile_definitions(BOOST_NO_CXX98_FUNCTION_BASE)', patched)
