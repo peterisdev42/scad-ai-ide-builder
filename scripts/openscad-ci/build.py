@@ -664,7 +664,10 @@ def main():
             raise RuntimeError(f"MSVC AddressSanitizer runtime is missing: {runtime}")
         # Seed sanitizer flags without replacing CMake's MSVC defaults (/EHsc,
         # /GR, etc.). Clipper2 treats the missing-exception warning as an error.
-        options += ["-DCMAKE_CXX_FLAGS_INIT=/fsanitize=address /Zi", "-DCMAKE_C_FLAGS_INIT=/fsanitize=address /Zi",
+        # Cached static dependencies have no STL container annotations. MSVC
+        # requires the same setting in every object; heap ASan stays enabled.
+        options += ["-DCMAKE_CXX_FLAGS_INIT=/fsanitize=address /Zi /D_DISABLE_VECTOR_ANNOTATION /D_DISABLE_STRING_ANNOTATION",
+                    "-DCMAKE_C_FLAGS_INIT=/fsanitize=address /Zi",
                     "-DCMAKE_EXE_LINKER_FLAGS_INIT=/DEBUG /INCREMENTAL:NO"]
     build = work / "build"
     run("cmake", "-S", source, "-B", build, "-G", "Ninja", "-DCMAKE_BUILD_TYPE=Release",

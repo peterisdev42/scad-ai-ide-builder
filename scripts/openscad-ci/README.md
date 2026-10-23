@@ -118,3 +118,7 @@ python3 -m unittest discover -s scripts/openscad-ci -p 'test_*.py' -v
 `Diagnose OpenSCAD Windows x86` 是单独手动触发的 ASan 工作流，仅生成诊断 artifact，
 不创建 Release。诊断包带 `asan: true` 元数据，发布校验会拒绝这类包。
 普通打包失败时也保留已生成的归档，便于复现，无需反复重新编译。
+诊断通过 CMake 的 `*_FLAGS_INIT` 追加 ASan 参数，保留 MSVC 默认的异常处理等选项。
+为与未插桩的缓存静态依赖保持一致，关闭 MSVC 的 `vector` / `string` 容器标注；
+保留 ASan 的堆越界、释放后访问和分配/释放不匹配检测，但不检测容器已分配容量内的逻辑越界。
+这是 [MSVC 对混合静态依赖的要求](https://learn.microsoft.com/en-us/cpp/sanitizers/error-container-overflow)。
