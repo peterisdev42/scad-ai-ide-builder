@@ -17,6 +17,8 @@ Windows 使用 `bin/openscad.exe`，其余参数与 macOS 相同。
 其他分支只上传 Actions artifacts；默认分支五种目标均通过后，创建或更新
 `openscad-cli-2021.01` GitHub Release，标题为 `OpenSCAD CLI 2021.01`，同名附件会被替换。
 使用仓库内置 `GITHUB_TOKEN`，发布 job 具有 `contents: write` 权限。
+创建 Release 时以默认分支名为目标，避免构建期间分支前进后，对旧工作流提交创建标签触发 403。
+Release 标签作为下载入口；实际构建脚本提交以每个包内的 `build-info.json` 为准。
 同一分支有新提交时，自动取消旧轮次，只验证最新版本。
 
 发布文件名为 `openscad-cli-macos-{arm64,x86_64}.tar.gz` 和

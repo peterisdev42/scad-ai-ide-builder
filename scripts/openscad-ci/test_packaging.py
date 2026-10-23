@@ -36,6 +36,22 @@ class PackagingTests(unittest.TestCase):
         self.assertTrue(all(url == base + name for name, url in links))
         self.assertNotIn('Compatibility', notes)
 
+    def test_new_release_targets_branch_when_build_commit_is_no_longer_head(self):
+        with tempfile.TemporaryDirectory() as directory:
+            dist = Path(directory)
+            for name in release_assets():
+                (dist / name).touch()
+            current = {'assets': [{'name': name, 'id': i} for i, name in enumerate(release_assets())]}
+            with mock.patch.dict(os.environ, {'GITHUB_REF_NAME': 'main', 'GITHUB_SHA': 'old-build-commit'}), mock.patch(
+                    'release.verify_assets'), mock.patch('release.subprocess.check_output',
+                    side_effect=[json.dumps([[]]), json.dumps(current)]), mock.patch(
+                    'release.subprocess.check_call') as command:
+                publish(dist, dist / 'notes.md', 'example/builder')
+                args = command.call_args_list[0].args[0]
+                self.assertEqual(args[:3], ['gh', 'release', 'create'])
+                self.assertEqual(args[args.index('--target') + 1], 'main')
+                self.assertNotIn('old-build-commit', args)
+
     def test_release_cleanup_only_after_verified_upload(self):
         with tempfile.TemporaryDirectory() as directory:
             dist = Path(directory)

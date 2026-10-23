@@ -86,8 +86,10 @@ def publish(dist, notes, repository):
         subprocess.check_call(["gh", "release", "edit", RELEASE_TAG, "--title", RELEASE_TITLE,
                                "--notes-file", str(notes), *common])
     else:
+        # A moving branch ref remains publishable if main advances during the build.
+        # The package build-info.json records the actual immutable builder commit.
         subprocess.check_call(["gh", "release", "create", RELEASE_TAG, *files,
-                               "--target", os.environ["GITHUB_SHA"], "--title", RELEASE_TITLE,
+                               "--target", os.environ["GITHUB_REF_NAME"], "--title", RELEASE_TITLE,
                                "--notes-file", str(notes), "--latest=false", *common])
     current = json.loads(subprocess.check_output(
         ["gh", "api", f"repos/{repository}/releases/tags/{RELEASE_TAG}"], text=True))
