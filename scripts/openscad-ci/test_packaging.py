@@ -18,6 +18,18 @@ from release import verify_assets, release_assets, release_notes, publish, RELEA
 
 
 class PackagingTests(unittest.TestCase):
+    def test_smoke_preserves_version_failure_diagnostics(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            error = subprocess.CalledProcessError(1, ['openscad', '--version'],
+                                                 output='AddressSanitizer: startup failure\n')
+            with mock.patch('build.verify_runtime_dependencies'), mock.patch(
+                    'build.run', side_effect=error):
+                with self.assertRaises(subprocess.CalledProcessError) as caught:
+                    smoke_test(root, 'macos-arm64', root)
+            self.assertIs(caught.exception, error)
+            self.assertEqual((root / 'smoke/smoke.log').read_text(), error.stdout)
+
     def test_release_table_links_cover_exactly_five_packages_and_checksums(self):
         import re
         assets = release_assets()
@@ -203,6 +215,10 @@ class PackagingTests(unittest.TestCase):
             (source / 'src/main_wrapper.cc').write_text(subprocess.check_output([
                 'git', '-C', str(ROOT / 'sources/openscad'), 'show',
                 f'{SOURCE_TAG}:src/main_wrapper.cc'], text=True))
+            (source / 'src/glview').mkdir()
+            (source / 'src/glview/OffscreenView.cc').write_text(subprocess.check_output([
+                'git', '-C', str(ROOT / 'sources/openscad'), 'show',
+                f'{SOURCE_TAG}:src/glview/OffscreenView.cc'], text=True))
             (source / 'resources').mkdir()
             for name in ('openscad_win32.rc.in', 'openscad_win32-nightly.rc.in'):
                 (source / 'resources' / name).write_text(subprocess.check_output([

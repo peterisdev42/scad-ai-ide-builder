@@ -162,6 +162,20 @@ def patch_modern_source(source):
     for name in ("openscad_win32.rc.in", "openscad_win32-nightly.rc.in"):
         path = source / "resources" / name
         path.write_text(replace_once(path.read_text(), '1 RT_MANIFEST "scripts/winmanifest.xml"\n', ''))
+    # Derived members (including ctx) die before the GLView base destructor.
+    # Release the base's GPU resources while this context is still current.
+    path = source / "src/glview/OffscreenView.cc"
+    path.write_text(replace_once(path.read_text(), """OffscreenView::~OffscreenView()
+{
+  fbo.reset();
+}""", """OffscreenView::~OffscreenView()
+{
+  ctx->makeCurrent();
+  renderer.reset();
+  teardownShader();
+  edge_shader.reset();
+  fbo.reset();
+}"""))
 
 
 def patch_source(source):
@@ -567,7 +581,7 @@ def verify_runtime_dependencies(package, target):
     print(f"Verified bundled runtime dependencies: {target}", flush=True)
 
 
-def smoke_test(package, target, work):
+def smoke_test(package, target, work, asan_options=None):
     verify_runtime_dependencies(package, target)
     binary = package / "bin" / ("openscad.exe" if target.startswith("windows") else "openscad")
     env = os.environ.copy()
@@ -581,7 +595,8 @@ def smoke_test(package, target, work):
     else:
         env["PATH"] = "/usr/bin:/bin:/usr/sbin:/sbin"
     if ASAN_MODE:
-        env["ASAN_OPTIONS"] = "alloc_dealloc_mismatch=1:halt_on_error=1:windows_hook_rtl_allocators=1"
+        env["ASAN_OPTIONS"] = (asan_options if asan_options is not None else
+                               "halt_on_error=1:windows_hook_rtl_allocators=1")
         env["_NT_SYMBOL_PATH"] = str(binary.parent)
     env["LIBGL_ALWAYS_SOFTWARE"] = "1"
     if target.startswith("windows"):
@@ -594,7 +609,12 @@ def smoke_test(package, target, work):
                      'translate([0,0,5]) linear_extrude(1) text("CLI",size=4,font="Liberation Sans");\n')
     log = test / "smoke.log"
     with log.open("w") as stream:
-        result = run(binary, "--version", env=env, cwd=test, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        try:
+            result = run(binary, "--version", env=env, cwd=test, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        except subprocess.CalledProcessError as error:
+            stream.write(error.stdout or "")
+            stream.flush()
+            raise
         stream.write(result.stdout)
         stream.flush()
         if SOURCE_VERSION not in result.stdout:
@@ -662,8 +682,13 @@ def main():
         runtime = Path(shutil.which("cl")).parent / "clang_rt.asan_dynamic-i386.dll"
         if not runtime.is_file():
             raise RuntimeError(f"MSVC AddressSanitizer runtime is missing: {runtime}")
-        options += ["-DCMAKE_CXX_FLAGS=/fsanitize=address /Zi", "-DCMAKE_C_FLAGS=/fsanitize=address /Zi",
-                    "-DCMAKE_EXE_LINKER_FLAGS=/DEBUG /INCREMENTAL:NO"]
+        # Seed sanitizer flags without replacing CMake's MSVC defaults (/EHsc,
+        # /GR, etc.). Clipper2 treats the missing-exception warning as an error.
+        # Cached static dependencies have no STL container annotations. MSVC
+        # requires the same setting in every object; heap ASan stays enabled.
+        options += ["-DCMAKE_CXX_FLAGS_INIT=/fsanitize=address /Zi /D_DISABLE_VECTOR_ANNOTATION /D_DISABLE_STRING_ANNOTATION",
+                    "-DCMAKE_C_FLAGS_INIT=/fsanitize=address /Zi",
+                    "-DCMAKE_EXE_LINKER_FLAGS_INIT=/DEBUG /INCREMENTAL:NO"]
     build = work / "build"
     run("cmake", "-S", source, "-B", build, "-G", "Ninja", "-DCMAKE_BUILD_TYPE=Release",
         "-DHEADLESS=ON", "-DNULLGL=OFF", "-DINFO=OFF", *options)

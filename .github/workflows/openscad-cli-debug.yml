@@ -2,9 +2,24 @@ name: Diagnose OpenSCAD Windows x86
 
 on:
   workflow_dispatch:
+    inputs:
+      package_run_id:
+        description: Existing diagnostic build run to recheck without recompilation (blank builds from source)
+        type: string
+        default: ''
+      context_provider:
+        description: OpenGL provider for an existing package recheck
+        type: choice
+        default: wgl
+        options: [wgl, wgl-old]
+      asan_options:
+        description: ASan runtime options for an existing package recheck
+        type: string
+        default: 'halt_on_error=1:windows_hook_rtl_allocators=1'
 
 permissions:
   contents: read
+  actions: read
 
 env:
   OPENSCAD_TAG: openscad-2026.10-TEST4
@@ -17,7 +32,15 @@ env:
   PYTHONUTF8: '1'
 
 jobs:
+  recheck:
+    if: inputs.package_run_id != ''
+    uses: ./.github/workflows/openscad-cli-repro.yml
+    with:
+      package_run_id: ${{ inputs.package_run_id }}
+      context_provider: ${{ inputs.context_provider }}
+      asan_options: ${{ inputs.asan_options }}
   diagnose:
+    if: inputs.package_run_id == ''
     runs-on: windows-2022
     timeout-minutes: 120
     steps:

@@ -68,6 +68,8 @@ Release 标签作为下载入口；实际构建脚本提交以每个包内的 `b
 - macOS 部署目标为 11，应用经过 ad-hoc 签名，未公证；最低系统版本仍需实际机器验收。
 
 OpenSCAD 的构建兼容补丁只应用到 `.build/<target>/source` 副本；不会修改子模块源码。
+TEST4 离屏视图先在仍有效的 OpenGL 上下文中释放 renderer、shader 和 FBO，
+再销毁上下文，避免 x86 在 PNG 导出后的析构阶段访问失效的 OpenGL 状态。
 vcpkg 编译产物按架构及依赖缓存，失败时也保存已完成的依赖。
 失败日志上传包含隐藏的 `.build` 目录，并把关键依赖日志打印到 Actions 控制台。
 
@@ -118,3 +120,13 @@ python3 -m unittest discover -s scripts/openscad-ci -p 'test_*.py' -v
 `Diagnose OpenSCAD Windows x86` 是单独手动触发的 ASan 工作流，仅生成诊断 artifact，
 不创建 Release。诊断包带 `asan: true` 元数据，发布校验会拒绝这类包。
 普通打包失败时也保留已生成的归档，便于复现，无需反复重新编译。
+诊断通过 CMake 的 `*_FLAGS_INIT` 追加 ASan 参数，保留 MSVC 默认的异常处理等选项。
+为与未插桩的缓存静态依赖保持一致，关闭 MSVC 的 `vector` / `string` 容器标注；
+保留 ASan 的堆越界和释放后访问检测，但不检测容器已分配容量内的逻辑越界。
+这是 [MSVC 对混合静态依赖的要求](https://learn.microsoft.com/en-us/cpp/sanitizers/error-container-overflow)。
+动态依赖未插桩，因此沿用 Windows ASan 默认的分配器类型检查设置。
+复查工作流附带合法跨 DLL `new/delete` 的最小实验：在此工具链中强制
+`alloc_dealloc_mismatch=1` 会对该实验误报。`asan_options` 可显式选择其他运行时诊断配置。
+填写诊断工作流的 `package_run_id` 可复用该次运行的诊断包，重新执行完整搬移验收；
+无需再次编译。`context_provider` 可对比上游支持的 `wgl` 和 `wgl-old` 离屏上下文。
+复查仍校验源码版本、架构、运行库和所有输出，日志与输出文件保存在单独 artifact 中。
