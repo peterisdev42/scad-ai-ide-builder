@@ -113,6 +113,13 @@ def patch_modern_source(source):
     text = replace_once(text, 'GLEW::glew)', 'GLEW::GLEW)')
     # Boost 1.80 uses CMake's FindBoost module, not the newer BoostConfig package.
     text = replace_once(text, 'cmake_policy(SET CMP0167 NEW)', 'cmake_policy(SET CMP0167 OLD)')
+    # Select Boost 1.80's own typedef-preserving compatibility implementation.
+    # libc++ no longer provides std::unary_function in C++17 mode.
+    text = replace_once(text, '\nfind_package(PkgConfig)\n',
+                        '\nif(APPLE)\n  add_compile_definitions(BOOST_NO_CXX98_FUNCTION_BASE)\nendif()\n\nfind_package(PkgConfig)\n')
+    # MSVC invokes find_graphics before upstream adds its custom FindOpenCSG module.
+    text = replace_once(text, '\nmacro(find_graphics)\n',
+                        '\nmacro(find_graphics)\n  list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/Modules")\n')
     text = replace_once(text, 'set_property(TARGET OpenSCADExe PROPERTY WIN32_EXECUTABLE ON)',
                         'set_property(TARGET OpenSCADExe PROPERTY WIN32_EXECUTABLE OFF)')
     text = replace_once(text, 'LINK_FLAGS "-subsystem:windows -ENTRY:mainCRTStartup -stack:${STACKSIZE}"',

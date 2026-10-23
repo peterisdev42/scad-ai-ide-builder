@@ -203,6 +203,8 @@ class PackagingTests(unittest.TestCase):
             patched = (source / 'CMakeLists.txt').read_text()
             self.assertIn('WIN32_EXECUTABLE OFF', patched)
             self.assertIn('cmake_policy(SET CMP0167 OLD)', patched)
+            self.assertIn('add_compile_definitions(BOOST_NO_CXX98_FUNCTION_BASE)', patched)
+            self.assertIn('macro(find_graphics)\n  list(APPEND CMAKE_MODULE_PATH', patched)
             self.assertIn('opencsg.h PATH_SUFFIXES opencsg', (source / 'cmake/Modules/FindOpenCSG.cmake').read_text())
             self.assertIn('/SUBSYSTEM:CONSOLE', patched)
             self.assertIn('option(ENABLE_MANIFOLD "Enable Manifold." ON)', patched)
