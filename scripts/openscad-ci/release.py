@@ -29,6 +29,7 @@ def verify_assets(dist):
         if (metadata["commit"] != SOURCE_COMMIT or metadata["target"] != target
                 or metadata.get("tag") != SOURCE_TAG
                 or (MODERN_SOURCE and not metadata.get("manifold"))
+                or metadata.get("asan", False)
                 or not metadata["headless"] or not metadata["opengl"] or metadata["nullgl"]):
             raise RuntimeError(f"Unexpected build metadata: {archive}")
 

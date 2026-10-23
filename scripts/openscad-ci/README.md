@@ -112,3 +112,9 @@ python3 -m unittest discover -s scripts/openscad-ci -p 'test_*.py' -v
 ```
 
 完整编译、动态库重定位和 OpenGL 验收以各原生 GitHub runner 的运行结果为准。
+
+## Windows x86 内存诊断
+
+`Diagnose OpenSCAD Windows x86` 是单独手动触发的 ASan 工作流，仅生成诊断 artifact，
+不创建 Release。诊断包带 `asan: true` 元数据，发布校验会拒绝这类包。
+普通打包失败时也保留已生成的归档，便于复现，无需反复重新编译。

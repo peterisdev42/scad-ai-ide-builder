@@ -146,6 +146,7 @@ jobs:
           name: logs-${{ matrix.target }}
           include-hidden-files: true
           path: |
+            dist/*
             .build/**/*.log
             .build/**/CMakeCache.txt
           if-no-files-found: ignore

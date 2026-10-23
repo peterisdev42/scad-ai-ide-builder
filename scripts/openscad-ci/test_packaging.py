@@ -257,11 +257,11 @@ class PackagingTests(unittest.TestCase):
                 with self.assertRaises(RuntimeError):
                     check_architecture(executable, wrong)
 
-    def create_assets(self, dist):
+    def create_assets(self, dist, asan=False):
         for target in TARGETS:
             name = package_name(target)
             metadata = json.dumps({"target": target, "commit": SOURCE_COMMIT, "tag": SOURCE_TAG, "manifold": MODERN_SOURCE,
-                                   "headless": True, "opengl": True, "nullgl": False}).encode()
+                                   "headless": True, "opengl": True, "nullgl": False, "asan": asan}).encode()
             if target.startswith("windows"):
                 archive = dist / (name + ".zip")
                 with zipfile.ZipFile(archive, "w") as stream:
@@ -274,6 +274,13 @@ class PackagingTests(unittest.TestCase):
                     stream.addfile(member, io.BytesIO(metadata))
             archive.with_name(archive.name + ".sha256").write_text(
                 hashlib.sha256(archive.read_bytes()).hexdigest() + "  " + archive.name + "\n")
+
+    def test_release_gate_rejects_instrumented_diagnostic_packages(self):
+        with tempfile.TemporaryDirectory() as directory:
+            dist = Path(directory)
+            self.create_assets(dist, asan=True)
+            with self.assertRaisesRegex(RuntimeError, 'Unexpected build metadata'):
+                verify_assets(dist)
 
     def test_release_gate_requires_all_architectures_and_valid_checksums(self):
         with tempfile.TemporaryDirectory() as directory:

@@ -1,0 +1,72 @@
+name: Diagnose OpenSCAD Windows x86
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  OPENSCAD_TAG: openscad-2026.10-TEST4
+  OPENSCAD_COMMIT: 5a864f17b6b022904004704f64e6168d2cfb8435
+  VCPKG_COMMIT: 6f7ffeb18f99796233b958aaaf14ec7bd4fb64b2
+  TARGET: windows-x86
+  TRIPLET: x86-windows
+  BUILD_ARCH: x86
+  OPENSCAD_ASAN: '1'
+  PYTHONUTF8: '1'
+
+jobs:
+  diagnose:
+    runs-on: windows-2022
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/checkout@v5
+        with:
+          repository: peterisdev42/openscad
+          ref: openscad-2026.10-TEST4
+          path: sources/openscad
+          submodules: recursive
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+          architecture: x64
+      - name: Initialize x86 compiler
+        shell: pwsh
+        run: ./scripts/openscad-ci/windows-tools.ps1
+      - name: Check sanitizer tooling
+        shell: pwsh
+        run: |
+          $compiler = (Get-Command cl.exe).Source
+          $runtime = Join-Path (Split-Path $compiler) 'clang_rt.asan_dynamic-i386.dll'
+          if (!(Test-Path $runtime)) { throw "AddressSanitizer runtime missing: $runtime" }
+          Write-Output $runtime
+      - name: Install pinned build tools
+        run: python -m pip install cmake==3.31.6 ninja==1.11.1.3 meson==1.7.0 Mako==1.3.9 PyYAML==6.0.2 packaging==24.2
+      - uses: actions/checkout@v5
+        with:
+          repository: microsoft/vcpkg
+          ref: 6f7ffeb18f99796233b958aaaf14ec7bd4fb64b2
+          path: .build/vcpkg
+      - uses: actions/cache/restore@v5
+        with:
+          path: .build/vcpkg-cache
+          key: diagnostic-deps-${{ github.run_id }}
+          restore-keys: openscad-deps-v2-windows-x86-${{ env.VCPKG_COMMIT }}-
+      - name: Reproduce with AddressSanitizer
+        env:
+          VCPKG_BINARY_SOURCES: clear;files,${{ github.workspace }}/.build/vcpkg-cache,readwrite
+        run: python scripts/openscad-ci/build.py
+      - name: Preserve diagnostics and executable
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: diagnostic-windows-x86-asan
+          include-hidden-files: true
+          path: |
+            dist/*
+            .build/**/*.log
+            .build/**/CMakeCache.txt
+          if-no-files-found: ignore
+          retention-days: 7
