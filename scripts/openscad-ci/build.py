@@ -24,11 +24,11 @@ SOURCE_TAG = os.environ.get("OPENSCAD_TAG", "openscad-2026.10-TEST4")
 SOURCE_COMMIT = SOURCE_REVISIONS[SOURCE_TAG]
 SOURCE_VERSION = SOURCE_TAG.removeprefix("openscad-")
 MODERN_SOURCE = SOURCE_TAG != "openscad-2021.01"
-ASAN_MODE = os.environ.get("OPENSCAD_ASAN") == "1"
 VCPKG_COMMIT = "6f7ffeb18f99796233b958aaaf14ec7bd4fb64b2"
 MESA_VERSION = "24.3.4"
 MESA_SHA256 = "e641ae27191d387599219694560d221b7feaa91c900bcec46bf444218ed66025"
-TARGETS = ("macos-x64", "macos-arm64", "windows-x64", "windows-x86", "windows-arm64")
+NATIVE_TARGETS = ("macos-x64", "macos-arm64", "windows-x64", "windows-arm64")
+TARGETS = (*NATIVE_TARGETS, "wasm")
 
 
 def package_name(target):
@@ -341,7 +341,7 @@ def check_architecture(executable, target):
         if data[offset:offset + 4] != b"PE\0\0":
             raise RuntimeError("Not a PE executable")
         machine = struct.unpack_from("<H", data, offset + 4)[0]
-        expected = {"x86": 0x14C, "x64": 0x8664, "arm64": 0xAA64}[arch]
+        expected = {"x64": 0x8664, "arm64": 0xAA64}[arch]
     elif target.startswith("linux"):
         if data[:4] != b"\x7fELF" or data[5] != 1:
             raise RuntimeError("Not a little endian ELF executable")
@@ -455,11 +455,6 @@ def stage(source, build, work, target, prefix, mesa):
             shutil.copy2(dll, bin_dir / dll.name)
         for dll in mesa.rglob("*.dll"):
             shutil.copy2(dll, bin_dir / dll.name)
-        if ASAN_MODE:
-            runtime = Path(shutil.which("cl")).parent / "clang_rt.asan_dynamic-i386.dll"
-            shutil.copy2(runtime, bin_dir / runtime.name)
-            for pdb in build.glob("*.pdb"):
-                shutil.copy2(pdb, bin_dir / pdb.name)
         runtime_version = copy_windows_runtime(bin_dir, target)
         resources = bin_dir
         shutil.copy2(work / f"mesa-{MESA_VERSION}/docs/license.rst", package / "MESA-LICENSE.rst")
@@ -518,7 +513,7 @@ def stage(source, build, work, target, prefix, mesa):
         "msvc_runtime": runtime_version,
         "lib3mf": target.startswith("linux"),
         "manifold": MODERN_SOURCE,
-        "asan": ASAN_MODE,
+        "asan": False,
         "builder_commit": os.environ.get("GITHUB_SHA"),
     }, indent=2) + "\n")
     if target.startswith("macos"):
@@ -581,7 +576,7 @@ def verify_runtime_dependencies(package, target):
     print(f"Verified bundled runtime dependencies: {target}", flush=True)
 
 
-def smoke_test(package, target, work, asan_options=None):
+def smoke_test(package, target, work):
     verify_runtime_dependencies(package, target)
     binary = package / "bin" / ("openscad.exe" if target.startswith("windows") else "openscad")
     env = os.environ.copy()
@@ -594,10 +589,6 @@ def smoke_test(package, target, work, asan_options=None):
         env["PATH"] = os.pathsep.join(map(str, (system / "System32", system)))
     else:
         env["PATH"] = "/usr/bin:/bin:/usr/sbin:/sbin"
-    if ASAN_MODE:
-        env["ASAN_OPTIONS"] = (asan_options if asan_options is not None else
-                               "halt_on_error=1:windows_hook_rtl_allocators=1")
-        env["_NT_SYMBOL_PATH"] = str(binary.parent)
     env["LIBGL_ALWAYS_SOFTWARE"] = "1"
     if target.startswith("windows"):
         env["GALLIUM_DRIVER"] = "softpipe"
@@ -640,7 +631,7 @@ def smoke_test(package, target, work, asan_options=None):
 
 def main():
     target = os.environ["TARGET"]
-    if target not in TARGETS:
+    if target not in NATIVE_TARGETS:
         raise RuntimeError(f"Unsupported target: {target}")
     repo = ROOT / "sources/openscad"
     if output("git", "-C", repo, "rev-parse", "HEAD") != SOURCE_COMMIT:
@@ -676,19 +667,6 @@ def main():
                     "-DCMAKE_REQUIRE_FIND_PACKAGE_Lib3MF=OFF", "-DCMAKE_DISABLE_FIND_PACKAGE_Lib3MF=ON",
                     "-DENABLE_HIDAPI=OFF", "-DENABLE_SPNAV=OFF", "-DENABLE_GAMEPAD=OFF",
                     "-DCMAKE_OSX_DEPLOYMENT_TARGET=11.0"]
-    if ASAN_MODE:
-        if target != "windows-x86":
-            raise RuntimeError("ASan diagnostics are restricted to Windows x86")
-        runtime = Path(shutil.which("cl")).parent / "clang_rt.asan_dynamic-i386.dll"
-        if not runtime.is_file():
-            raise RuntimeError(f"MSVC AddressSanitizer runtime is missing: {runtime}")
-        # Seed sanitizer flags without replacing CMake's MSVC defaults (/EHsc,
-        # /GR, etc.). Clipper2 treats the missing-exception warning as an error.
-        # Cached static dependencies have no STL container annotations. MSVC
-        # requires the same setting in every object; heap ASan stays enabled.
-        options += ["-DCMAKE_CXX_FLAGS_INIT=/fsanitize=address /Zi /D_DISABLE_VECTOR_ANNOTATION /D_DISABLE_STRING_ANNOTATION",
-                    "-DCMAKE_C_FLAGS_INIT=/fsanitize=address /Zi",
-                    "-DCMAKE_EXE_LINKER_FLAGS_INIT=/DEBUG /INCREMENTAL:NO"]
     build = work / "build"
     run("cmake", "-S", source, "-B", build, "-G", "Ninja", "-DCMAKE_BUILD_TYPE=Release",
         "-DHEADLESS=ON", "-DNULLGL=OFF", "-DINFO=OFF", *options)

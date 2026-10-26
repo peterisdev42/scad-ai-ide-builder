@@ -11,10 +11,11 @@ import unittest
 from unittest import mock
 import zipfile
 
-from build import (ROOT, SOURCE_COMMIT, SOURCE_TAG, TARGETS, check_architecture,
+from build import (ROOT, SOURCE_COMMIT, SOURCE_TAG, TARGETS, NATIVE_TARGETS, check_architecture,
                    patch_source, patch_legacy_source, patch_modern_source, MODERN_SOURCE, package_name, verify_runtime_dependencies)
 from build import smoke_test, copy_windows_runtime
 from release import verify_assets, release_assets, release_notes, publish, RELEASE_TAG
+from wasm import WASM_IMAGE, WASM_CAPABILITIES, patch_wasm_source
 
 
 class PackagingTests(unittest.TestCase):
@@ -120,7 +121,7 @@ class PackagingTests(unittest.TestCase):
             with mock.patch('build.os.environ', environment), mock.patch(
                     'build.verify_runtime_dependencies'), mock.patch('build.run', side_effect=first_command):
                 with self.assertRaisesRegex(RuntimeError, 'Reached CLI with isolated PATH'):
-                    smoke_test(root, 'windows-x86', root)
+                    smoke_test(root, 'windows-x64', root)
 
     def test_windows_dependency_audit_rejects_missing_transitive_library(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -251,13 +252,13 @@ class PackagingTests(unittest.TestCase):
     def test_architecture_detection_rejects_mislabeled_artifacts(self):
         with tempfile.TemporaryDirectory() as directory:
             executable = Path(directory) / "binary"
-            for target in TARGETS:
+            for target in NATIVE_TARGETS:
                 data = bytearray(256)
                 if target.startswith("windows"):
                     data[:2] = b"MZ"
                     struct.pack_into("<I", data, 0x3C, 128)
                     data[128:132] = b"PE\0\0"
-                    machine = {"x86": 0x14C, "x64": 0x8664, "arm64": 0xAA64}[target.split("-")[1]]
+                    machine = {"x64": 0x8664, "arm64": 0xAA64}[target.split("-")[1]]
                     struct.pack_into("<H", data, 132, machine)
                 elif target.startswith("linux"):
                     data[:4] = b"\x7fELF"
@@ -276,8 +277,12 @@ class PackagingTests(unittest.TestCase):
     def create_assets(self, dist, asan=False):
         for target in TARGETS:
             name = package_name(target)
-            metadata = json.dumps({"target": target, "commit": SOURCE_COMMIT, "tag": SOURCE_TAG, "manifold": MODERN_SOURCE,
-                                   "headless": True, "opengl": True, "nullgl": False, "asan": asan}).encode()
+            wasm = target == 'wasm'
+            metadata = {"target": target, "commit": SOURCE_COMMIT, "tag": SOURCE_TAG, "manifold": MODERN_SOURCE,
+                        "headless": True, "opengl": not wasm, "nullgl": wasm, "asan": asan}
+            if wasm:
+                metadata.update(WASM_CAPABILITIES, runtime='node', node_min_version=22, wasm_image=WASM_IMAGE)
+            metadata = json.dumps(metadata).encode()
             if target.startswith("windows"):
                 archive = dist / (name + ".zip")
                 with zipfile.ZipFile(archive, "w") as stream:
@@ -288,6 +293,13 @@ class PackagingTests(unittest.TestCase):
                     member = tarfile.TarInfo(name + "/build-info.json")
                     member.size = len(metadata)
                     stream.addfile(member, io.BytesIO(metadata))
+                    if wasm:
+                        for filename, data in {'bin/openscad.mjs': b'// launcher',
+                                               'bin/openscad-core.mjs': b'// loader',
+                                               'bin/openscad.wasm': b'\0asm\x01\0\0\0'}.items():
+                            member = tarfile.TarInfo(name + '/' + filename)
+                            member.size = len(data)
+                            stream.addfile(member, io.BytesIO(data))
             archive.with_name(archive.name + ".sha256").write_text(
                 hashlib.sha256(archive.read_bytes()).hexdigest() + "  " + archive.name + "\n")
 
@@ -307,7 +319,7 @@ class PackagingTests(unittest.TestCase):
             self.assertEqual({p.name for p in dist.iterdir() if not p.name.endswith('.sha256')}, {
                 'openscad-cli-macos-arm64.tar.gz', 'openscad-cli-macos-x86_64.tar.gz',
                 'openscad-cli-windows-arm64.zip', 'openscad-cli-windows-x86_64.zip',
-                'openscad-cli-windows-x86.zip',
+                'openscad-cli-wasm.tar.gz',
             })
             verify_assets(dist)
             windows_arm64 = dist / 'openscad-cli-windows-arm64.zip'
