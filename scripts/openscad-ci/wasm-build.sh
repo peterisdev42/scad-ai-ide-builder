@@ -27,4 +27,4 @@ else
     target=OpenSCADExe
 fi
 emcmake cmake -S "$source_dir" -B "$build_dir" -G Ninja "${options[@]}"
-cmake --build "$build_dir" --target "$target" --parallel 2
+cmake --build "$build_dir" --target "$target" --parallel 2 -- -k 0

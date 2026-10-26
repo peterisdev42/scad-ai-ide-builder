@@ -25,6 +25,7 @@ class WasmTests(unittest.TestCase):
             self.assertIn('-lnodefs.js', cmake)
             self.assertNotIn('-sNODERAWFS', cmake)
             self.assertNotIn('-sSINGLE_FILE', cmake)
+            self.assertNotIn('-sABORT_ON_WASM_EXCEPTIONS', cmake)
             if MODERN_SOURCE:
                 self.assertIn('option(ENABLE_CGAL "Enable CGAL." ON)', cmake)
                 self.assertIn('option(ENABLE_MANIFOLD "Enable Manifold." ON)', cmake)

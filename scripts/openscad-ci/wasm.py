@@ -31,6 +31,11 @@ def patch_wasm_source(source):
         text = text.replace("$<$<CONFIG:Release>:-sSINGLE_FILE>", "")
         text = replace_once(text, "['ENV','ERRNO_CODES','FS','PATH','callMain']",
                             "['ENV','ERRNO_CODES','FS','NODEFS','PATH','callMain']")
+        # Emscripten 4's abort instrumentation marks normal exit(0) as ABORT
+        # before unwinding into callMain(), then rejects its cleanup exports.
+        # Keep C++ exception handling and EXIT_RUNTIME; omit that optional
+        # instrumentation so successful and failed CLI exits retain their codes.
+        text = replace_once(text, "    -sABORT_ON_WASM_EXCEPTIONS\n", "")
         path.write_text(text)
         # Upstream's web build searches for resources in the current directory.
         # A CLI must preserve cwd for user imports and find its own resources
