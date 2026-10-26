@@ -67,6 +67,22 @@ target_link_options(OpenSCAD PRIVATE
         # CGAL 5.5 uses boost::prior, which newer Boost no longer includes
         # transitively. Include its owning header before the CGAL headers.
         path.write_text(replace_once(path.read_text(), "#pragma once", "#pragma once\n#include <boost/next_prior.hpp>"))
+        # The 2021 NULLGL implementation predates shader-aware renderer
+        # signatures. Keep its existing no-GL implementation consistent with
+        # the declarations; this does not enable or replace PNG rendering.
+        path = source / "src/GLView.h"
+        text = replace_once(path.read_text(), "#ifdef ENABLE_OPENCSG\n\t/// Shader attribute identifiers",
+                            "\t/// Shader attribute identifiers")
+        path.write_text(replace_once(text, "\tshaderinfo_t shaderinfo;",
+                                    "#ifdef ENABLE_OPENCSG\n\tshaderinfo_t shaderinfo;"))
+        path = source / "src/NULLGL.cc"
+        text = replace_once(path.read_text(), "void ThrownTogetherRenderer::draw(bool showfaces, bool showedges) const {};",
+                            "void ThrownTogetherRenderer::draw(bool showfaces, bool showedges) const {};\n"
+                            "void ThrownTogetherRenderer::draw_with_shader(const GLView::shaderinfo_t *, bool) const {}")
+        text = replace_once(text, "renderCSGProducts(const CSGProducts &products, bool",
+                            "renderCSGProducts(const CSGProducts &products, const GLView::shaderinfo_t *, bool")
+        path.write_text(replace_once(text, "renderChainObject(const class CSGChainObject &csgobj, bool",
+                                    "renderChainObject(const class CSGChainObject &csgobj, const GLView::shaderinfo_t *, bool"))
 
 
 def stage_wasm(source, build, work):
@@ -181,6 +197,12 @@ def smoke_wasm(package, work):
                                  env=env, cwd=test, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
         if failure.returncode == 0:
             raise RuntimeError("WASM CLI masked a model error")
+        for format in ("png", "pdf", "3mf"):
+            destination = test / ("unsupported." + format)
+            failure = subprocess.run([*command, "-o", str(destination), str(model)],
+                                     env=env, cwd=test, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+            if failure.returncode != 2 or "does not support" not in failure.stdout or destination.exists():
+                raise RuntimeError(f"WASM silently accepted unavailable {format} output")
     content = (test / "smoke.log").read_text()
     if re.search(r"ERROR:|WARNING: Can't open|WARNING: Ignoring unknown module|Fontconfig error|Can't initialize fontconfig|Could not initialize localization", content):
         raise RuntimeError("WASM smoke test reported a resource or geometry error")
