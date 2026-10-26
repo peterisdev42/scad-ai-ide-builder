@@ -14,6 +14,15 @@ pkg_check_modules(GLIB2 REQUIRED IMPORTED_TARGET glib-2.0)
 pkg_check_modules(FONTCONFIG REQUIRED IMPORTED_TARGET fontconfig)
 pkg_check_modules(HARFBUZZ REQUIRED IMPORTED_TARGET harfbuzz)
 pkg_check_modules(LIBZIP REQUIRED IMPORTED_TARGET libzip)
+# GLib's .pc file carries native -pthread flags even though this image's
+# libraries and the portable geometry runtime are built without WASM threads.
+foreach(property INTERFACE_COMPILE_OPTIONS INTERFACE_LINK_OPTIONS)
+  get_target_property(glib_options PkgConfig::GLIB2 ${property})
+  if(glib_options)
+    list(REMOVE_ITEM glib_options -pthread)
+    set_target_properties(PkgConfig::GLIB2 PROPERTIES ${property} "${glib_options}")
+  endif()
+endforeach()
 find_library(DOUBLE_CONVERSION_LIBRARY NAMES double-conversion REQUIRED)
 set(COMMON_LIBRARIES
   CGAL::CGAL Boost::filesystem Boost::system Boost::regex Boost::program_options

@@ -63,6 +63,10 @@ target_link_options(OpenSCAD PRIVATE
         path.write_text(replace_once(path.read_text(), "fs::is_regular(path)", "fs::is_regular_file(path)"))
         path = source / "src/Geometry.h"
         path.write_text(replace_once(path.read_text(), "#pragma once", "#pragma once\n#include <cassert>"))
+        path = source / "src/cgal.h"
+        # CGAL 5.5 uses boost::prior, which newer Boost no longer includes
+        # transitively. Include its owning header before the CGAL headers.
+        path.write_text(replace_once(path.read_text(), "#pragma once", "#pragma once\n#include <boost/next_prior.hpp>"))
 
 
 def stage_wasm(source, build, work):
