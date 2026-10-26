@@ -27,8 +27,11 @@ MODERN_SOURCE = SOURCE_TAG != "openscad-2021.01"
 VCPKG_COMMIT = "6f7ffeb18f99796233b958aaaf14ec7bd4fb64b2"
 MESA_VERSION = "24.3.4"
 MESA_SHA256 = "e641ae27191d387599219694560d221b7feaa91c900bcec46bf444218ed66025"
-NATIVE_TARGETS = ("macos-x64", "macos-arm64", "windows-x64", "windows-arm64")
+NATIVE_TARGETS = ("macos-x64", "macos-arm64", "windows-x64", "linux-x64", "linux-arm64")
 TARGETS = (*NATIVE_TARGETS, "wasm")
+LINUX_GLIBC_BASELINE = "2.35"
+LINUX_SYSTEM_LIBRARY = re.compile(
+    r"^(ld-linux|lib(c|m|pthread|dl|rt|resolv|util)\.so|lib(GL|GLX|GLdispatch|EGL|glapi)\.)")
 
 
 def package_name(target):
@@ -343,8 +346,8 @@ def check_architecture(executable, target):
         machine = struct.unpack_from("<H", data, offset + 4)[0]
         expected = {"x64": 0x8664, "arm64": 0xAA64}[arch]
     elif target.startswith("linux"):
-        if data[:4] != b"\x7fELF" or data[5] != 1:
-            raise RuntimeError("Not a little endian ELF executable")
+        if data[:4] != b"\x7fELF" or data[4] != 2 or data[5] != 1:
+            raise RuntimeError("Expected a little endian 64-bit ELF executable")
         machine = struct.unpack_from("<H", data, 18)[0]
         expected = {"x64": 62, "arm64": 183, "armv7": 40}[arch]
         if arch == "armv7" and not struct.unpack_from("<I", data, 36)[0] & 0x400:
@@ -363,7 +366,6 @@ def bundle_linux(binary, package):
     lib.mkdir()
     # Keep the GL/GLX driver stack and glibc on the host. Bundle other linked
     # libraries including libstdc++ so Ubuntu 22.04 is a clear ABI floor.
-    system = re.compile(r"^(ld-linux|lib(c|m|pthread|dl|rt|resolv|util)\.so|lib(GL|GLX|GLdispatch|EGL|glapi)\.)")
     pending, seen = [binary], set()
     while pending:
         current = pending.pop()
@@ -371,7 +373,7 @@ def bundle_linux(binary, package):
         if "not found" in linked:
             raise RuntimeError(f"Unresolved dependency: {linked}")
         for name, location in re.findall(r"^\s*(\S+) => (/\S+)", linked, re.MULTILINE):
-            if name in seen or system.match(name):
+            if name in seen or LINUX_SYSTEM_LIBRARY.match(name):
                 continue
             seen.add(name)
             destination = lib / name
@@ -380,6 +382,19 @@ def bundle_linux(binary, package):
     for dependency in lib.iterdir():
         run("patchelf", "--set-rpath", "$ORIGIN", dependency)
     run("patchelf", "--set-rpath", "$ORIGIN/../lib", binary)
+
+
+def linux_glibc_requirement(package):
+    versions = set()
+    for binary in [package / "bin/openscad-bin", *(package / "lib").iterdir()]:
+        versions.update(re.findall(r"\bName: GLIBC_(\d+(?:\.\d+)+)\b",
+                                   output("readelf", "--version-info", binary)))
+    if not versions:
+        raise RuntimeError("Linux package has no verifiable glibc requirements")
+    required = max(versions, key=lambda v: tuple(map(int, v.split("."))))
+    if tuple(map(int, required.split("."))) > tuple(map(int, LINUX_GLIBC_BASELINE.split("."))):
+        raise RuntimeError(f"Linux package requires glibc {required}, above baseline {LINUX_GLIBC_BASELINE}")
+    return required
 
 
 def copy_licenses(package, prefix):
@@ -515,6 +530,9 @@ def stage(source, build, work, target, prefix, mesa):
         "manifold": MODERN_SOURCE,
         "asan": False,
         "builder_commit": os.environ.get("GITHUB_SHA"),
+        **({"libc": "glibc", "minimum_glibc": LINUX_GLIBC_BASELINE,
+            "required_glibc": linux_glibc_requirement(package), "linux_baseline": "ubuntu-22.04"}
+           if target.startswith("linux") else {}),
     }, indent=2) + "\n")
     if target.startswith("macos"):
         # Re-sign after install_name_tool changes (required on Apple Silicon).
@@ -573,6 +591,16 @@ def verify_runtime_dependencies(package, target):
                     raise RuntimeError(f"Non-relocatable runtime dependency: {binary}: {dependency}")
                 if not any(p.is_file() and p.resolve().is_relative_to(package.resolve()) for p in candidates):
                     raise RuntimeError(f"Unbundled runtime dependency: {binary}: {dependency}")
+    elif target.startswith("linux"):
+        for binary in [package / "bin/openscad-bin", *(package / "lib").iterdir()]:
+            check_architecture(binary, target)
+            linked = output("ldd", binary)
+            if "not found" in linked:
+                raise RuntimeError(f"Unresolved runtime dependency: {binary}: {linked}")
+            for name, location in re.findall(r"^\s*(\S+) => (/\S+)", linked, re.MULTILINE):
+                if not LINUX_SYSTEM_LIBRARY.match(name) and not Path(location).resolve().is_relative_to(package.resolve()):
+                    raise RuntimeError(f"Unbundled runtime dependency: {binary.name}: {name}: {location}")
+        linux_glibc_requirement(package)
     print(f"Verified bundled runtime dependencies: {target}", flush=True)
 
 
@@ -615,6 +643,8 @@ def smoke_test(package, target, work):
                    + ["--imgsize=256,256"])]
         if MODERN_SOURCE:
             checks.append(("manifold.png", ["--backend=Manifold", "--render", "--imgsize=256,256"]))
+        if target.startswith("linux"):
+            checks.append(("model.3mf", []))
         for name, flags in checks:
             run(binary, *flags, "-o", test / name, model, env=env, cwd=test, stdout=stream, stderr=subprocess.STDOUT)
             artifact = test / name
@@ -624,6 +654,8 @@ def smoke_test(package, target, work):
                 data = artifact.read_bytes()
                 if data[:8] != b"\x89PNG\r\n\x1a\n" or struct.unpack_from(">II", data, 16) != (256, 256):
                     raise RuntimeError("Invalid PNG output")
+            elif name.endswith(".3mf") and artifact.read_bytes()[:4] != b"PK\x03\x04":
+                raise RuntimeError("Invalid 3MF output")
         run(binary, "--info", env=env, cwd=test, stdout=stream, stderr=subprocess.STDOUT)
     if re.search(r"ERROR:|WARNING: Can't open|WARNING: Ignoring unknown module|Could not initialize localization", log.read_text()):
         raise RuntimeError("Smoke test reported a missing resource or rendering error")
@@ -664,9 +696,10 @@ def main():
         options += [f"-DOPENSCAD_VERSION={SOURCE_VERSION}", f"-DOPENSCAD_COMMIT={SOURCE_COMMIT[:8]}",
                     "-DENABLE_TESTS=OFF", "-DENABLE_GUI_TESTS=OFF", "-DUSE_QT6=OFF",
                     "-DUSE_MIMALLOC=OFF", "-DENABLE_MANIFOLD=ON", "-DENABLE_CGAL=ON",
-                    "-DCMAKE_REQUIRE_FIND_PACKAGE_Lib3MF=OFF", "-DCMAKE_DISABLE_FIND_PACKAGE_Lib3MF=ON",
                     "-DENABLE_HIDAPI=OFF", "-DENABLE_SPNAV=OFF", "-DENABLE_GAMEPAD=OFF",
                     "-DCMAKE_OSX_DEPLOYMENT_TARGET=11.0"]
+        options += (["-DCMAKE_REQUIRE_FIND_PACKAGE_Lib3MF=ON"] if target.startswith("linux") else
+                    ["-DCMAKE_REQUIRE_FIND_PACKAGE_Lib3MF=OFF", "-DCMAKE_DISABLE_FIND_PACKAGE_Lib3MF=ON"])
     build = work / "build"
     run("cmake", "-S", source, "-B", build, "-G", "Ninja", "-DCMAKE_BUILD_TYPE=Release",
         "-DHEADLESS=ON", "-DNULLGL=OFF", "-DINFO=OFF", *options)
