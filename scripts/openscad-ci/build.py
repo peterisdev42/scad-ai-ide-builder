@@ -32,6 +32,7 @@ TARGETS = (*NATIVE_TARGETS, "wasm")
 LINUX_GLIBC_BASELINE = "2.35"
 LINUX_SYSTEM_LIBRARY = re.compile(
     r"^(ld-linux|lib(c|m|pthread|dl|rt|resolv|util)\.so|lib(GL|GLX|GLdispatch|EGL|glapi)\.)")
+LINUX_LDD_ENTRY = re.compile(r"^\s*(\S+) => (/.+?)\s+\(0x[0-9a-fA-F]+\)\s*$", re.MULTILINE)
 
 
 def package_name(target):
@@ -372,7 +373,7 @@ def bundle_linux(binary, package):
         linked = output("ldd", current)
         if "not found" in linked:
             raise RuntimeError(f"Unresolved dependency: {linked}")
-        for name, location in re.findall(r"^\s*(\S+) => (/\S+)", linked, re.MULTILINE):
+        for name, location in LINUX_LDD_ENTRY.findall(linked):
             if name in seen or LINUX_SYSTEM_LIBRARY.match(name):
                 continue
             seen.add(name)
@@ -597,7 +598,7 @@ def verify_runtime_dependencies(package, target):
             linked = output("ldd", binary)
             if "not found" in linked:
                 raise RuntimeError(f"Unresolved runtime dependency: {binary}: {linked}")
-            for name, location in re.findall(r"^\s*(\S+) => (/\S+)", linked, re.MULTILINE):
+            for name, location in LINUX_LDD_ENTRY.findall(linked):
                 if not LINUX_SYSTEM_LIBRARY.match(name) and not Path(location).resolve().is_relative_to(package.resolve()):
                     raise RuntimeError(f"Unbundled runtime dependency: {binary.name}: {name}: {location}")
         linux_glibc_requirement(package)

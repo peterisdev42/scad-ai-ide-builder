@@ -26,9 +26,9 @@ class LinuxPackagingTests(unittest.TestCase):
 
     def test_linux_audit_rejects_external_non_system_dependencies(self):
         with tempfile.TemporaryDirectory() as directory:
-            package = Path(directory)
+            package = Path(directory) / 'relocated package'
             binary = package / 'bin/openscad-bin'
-            binary.parent.mkdir()
+            binary.parent.mkdir(parents=True)
             (package / 'lib').mkdir()
             data = bytearray(64)
             data[:6] = b'\x7fELF\x02\x01'
@@ -38,6 +38,14 @@ class LinuxPackagingTests(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError, 'Unbundled runtime dependency'):
                     build.verify_runtime_dependencies(package, 'linux-x64')
             with mock.patch('build.output', return_value='libc.so.6 => /lib/libc.so.6 (0x1234)'), mock.patch(
+                    'build.linux_glibc_requirement', return_value='2.34'):
+                build.verify_runtime_dependencies(package, 'linux-x64')
+            library = package / 'lib/libexample.so'
+            library.write_bytes(data)
+            def linked(*args):
+                return (f'libexample.so => {library} (0x1234)' if args[-1] == binary
+                        else 'libc.so.6 => /lib/libc.so.6 (0x1234)')
+            with mock.patch('build.output', side_effect=linked), mock.patch(
                     'build.linux_glibc_requirement', return_value='2.34'):
                 build.verify_runtime_dependencies(package, 'linux-x64')
 
