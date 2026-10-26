@@ -380,9 +380,12 @@ def bundle_linux(binary, package):
             destination = lib / name
             shutil.copy2(location, destination)
             pending.append(destination)
+    # DT_RPATH also covers indirect dependencies of the host GL/GLX libraries.
+    # DT_RUNPATH only covers direct dependencies and can select host X11 libs
+    # despite bundled copies being present.
     for dependency in lib.iterdir():
-        run("patchelf", "--set-rpath", "$ORIGIN", dependency)
-    run("patchelf", "--set-rpath", "$ORIGIN/../lib", binary)
+        run("patchelf", "--force-rpath", "--set-rpath", "$ORIGIN", dependency)
+    run("patchelf", "--force-rpath", "--set-rpath", "$ORIGIN/../lib", binary)
 
 
 def linux_glibc_requirement(package):
