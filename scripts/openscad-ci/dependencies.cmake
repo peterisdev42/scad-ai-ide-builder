@@ -28,6 +28,7 @@ add_definitions(-DENABLE_CGAL -DENABLE_OPENCSG -DENABLE_LIBZIP -DENABLE_CAIRO -D
 # Ubuntu 22.04 provides the matching lib3MF 1.x API. It is optional upstream;
 # the pinned vcpkg baseline has no lib3mf port (macOS/Windows omit 3MF I/O).
 if(UNIX AND NOT APPLE)
+  list(APPEND COMMON_LIBRARIES OpenGL::GLU)
   include(${CMAKE_SOURCE_DIR}/cmake/Modules/FindLib3MF.cmake)
   if(LIB3MF_FOUND)
     add_definitions(${LIB3MF_CFLAGS})

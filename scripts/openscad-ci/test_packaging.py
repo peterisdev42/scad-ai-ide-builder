@@ -31,17 +31,17 @@ class PackagingTests(unittest.TestCase):
             self.assertIs(caught.exception, error)
             self.assertEqual((root / 'smoke/smoke.log').read_text(), error.stdout)
 
-    def test_release_table_links_cover_exactly_five_packages_and_checksums(self):
+    def test_release_table_links_cover_exactly_six_packages_and_checksums(self):
         import re
         assets = release_assets()
-        self.assertEqual(len(assets), 10)
-        self.assertEqual(len(set(assets)), 10)
+        self.assertEqual(len(assets), 12)
+        self.assertEqual(len(set(assets)), 12)
         self.assertNotIn('SHA256SUMS', assets)
         self.assertFalse(any('source' in name for name in assets))
         notes = release_notes('example/builder')
         links = re.findall(r'\[([^]]+)\]\(([^)]+)\)', notes)
         urls = [url for _, url in links]
-        self.assertEqual(len(urls), 10)
+        self.assertEqual(len(urls), 12)
         base = f'https://github.com/example/builder/releases/download/{RELEASE_TAG}/'
         self.assertEqual({url.removeprefix(base) for url in urls}, set(assets))
         self.assertTrue(all(url.startswith(base) for url in urls))
@@ -262,6 +262,7 @@ class PackagingTests(unittest.TestCase):
                     struct.pack_into("<H", data, 132, machine)
                 elif target.startswith("linux"):
                     data[:4] = b"\x7fELF"
+                    data[4] = 2
                     data[5] = 1
                     struct.pack_into("<H", data, 18, {"x64": 62, "arm64": 183, "armv7": 40}[target.split("-")[1]])
                     struct.pack_into("<I", data, 36, 0x400)
@@ -280,6 +281,8 @@ class PackagingTests(unittest.TestCase):
             wasm = target == 'wasm'
             metadata = {"target": target, "commit": SOURCE_COMMIT, "tag": SOURCE_TAG, "manifold": MODERN_SOURCE,
                         "headless": True, "opengl": not wasm, "nullgl": wasm, "asan": asan}
+            if target.startswith("linux"):
+                metadata.update(libc="glibc", minimum_glibc="2.35", required_glibc="2.34", linux_baseline="ubuntu-22.04")
             if wasm:
                 metadata.update(WASM_CAPABILITIES, runtime='node', node_min_version=22, wasm_image=WASM_IMAGE)
             metadata = json.dumps(metadata).encode()
@@ -318,11 +321,11 @@ class PackagingTests(unittest.TestCase):
             self.create_assets(dist)
             self.assertEqual({p.name for p in dist.iterdir() if not p.name.endswith('.sha256')}, {
                 'openscad-cli-macos-arm64.tar.gz', 'openscad-cli-macos-x86_64.tar.gz',
-                'openscad-cli-windows-arm64.zip', 'openscad-cli-windows-x86_64.zip',
+                'openscad-cli-linux-arm64.tar.gz', 'openscad-cli-linux-x86_64.tar.gz', 'openscad-cli-windows-x86_64.zip',
                 'openscad-cli-wasm.tar.gz',
             })
             verify_assets(dist)
-            windows_arm64 = dist / 'openscad-cli-windows-arm64.zip'
+            windows_arm64 = dist / 'openscad-cli-windows-x86_64.zip'
             content = windows_arm64.read_bytes()
             windows_arm64.unlink()
             with self.assertRaises(FileNotFoundError):

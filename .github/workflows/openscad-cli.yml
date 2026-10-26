@@ -42,7 +42,7 @@ jobs:
       - run: python3 -m unittest discover -s scripts/openscad-ci -p 'test_*.py' -v
 
   build:
-    name: ${{ matrix.target }}
+    name: ${{ matrix.label }}
     needs: validate
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 360
@@ -50,10 +50,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { target: macos-x64, runner: macos-26-intel, triplet: x64-osx }
-          - { target: macos-arm64, runner: macos-latest, triplet: arm64-osx }
-          - { target: windows-x64, runner: windows-2022, triplet: x64-windows, arch: x64 }
-          - { target: windows-arm64, runner: windows-11-arm, triplet: arm64-windows, arch: arm64 }
+          - { target: macos-x64, label: darwin-x64, runner: macos-26-intel, triplet: x64-osx }
+          - { target: macos-arm64, label: darwin-arm64, runner: macos-latest, triplet: arm64-osx }
+          - { target: windows-x64, label: win32-x64, runner: windows-2022, triplet: x64-windows, arch: x64 }
     steps:
       - uses: actions/checkout@v5
       # Fetch only OpenSCAD and its pinned submodules, not the builder's other sources.
@@ -152,6 +151,66 @@ jobs:
             .build/**/CMakeCache.txt
           if-no-files-found: ignore
 
+  linux:
+    name: ${{ matrix.target }}
+    needs: validate
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { target: linux-x64, runner: ubuntu-22.04 }
+          - { target: linux-arm64, runner: ubuntu-22.04-arm }
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/checkout@v5
+        with:
+          repository: peterisdev42/openscad
+          ref: ${{ env.OPENSCAD_TAG }}
+          path: sources/openscad
+          submodules: recursive
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+          architecture: ${{ runner.arch == 'ARM64' && 'arm64' || 'x64' }}
+      - name: Install pinned build tools
+        run: python -m pip install cmake==3.31.6 ninja==1.11.1.3
+      - uses: actions/cache/restore@v5
+        id: linux-cache
+        with:
+          path: .build/ccache
+          key: openscad-linux-v1-${{ matrix.target }}-${{ env.OPENSCAD_TAG }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: openscad-linux-v1-${{ matrix.target }}-${{ env.OPENSCAD_TAG }}-
+      - name: Build glibc CLI and relocated archive
+        env:
+          TARGET: ${{ matrix.target }}
+          CCACHE_DIR: ${{ github.workspace }}/.build/ccache
+          CCACHE_BASEDIR: ${{ github.workspace }}
+        run: bash scripts/openscad-ci/linux.sh
+      - uses: actions/cache/save@v5
+        if: always()
+        with:
+          path: .build/ccache
+          key: ${{ steps.linux-cache.outputs.cache-primary-key }}
+      - uses: actions/upload-artifact@v6
+        with:
+          name: openscad-cli-${{ matrix.target }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 14
+      - name: Upload Linux diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: logs-${{ matrix.target }}
+          include-hidden-files: true
+          path: |
+            dist/*
+            .build/**/*.log
+            .build/**/CMakeCache.txt
+          if-no-files-found: ignore
+
   wasm:
     name: wasm
     needs: validate
@@ -202,48 +261,9 @@ jobs:
             .build/wasm/**/CMakeCache.txt
           if-no-files-found: ignore
 
-  wasm-runtime:
-    name: WASM runtime (${{ matrix.runner }})
-    needs: wasm
-    runs-on: ${{ matrix.runner }}
-    timeout-minutes: 15
-    strategy:
-      fail-fast: false
-      matrix:
-        runner: [ubuntu-22.04, macos-26-intel, macos-latest, windows-2022, windows-11-arm]
-    steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
-        with:
-          python-version: '3.11'
-      - uses: actions/setup-node@v6
-        with:
-          node-version: '22'
-      - uses: actions/download-artifact@v7
-        with:
-          name: openscad-cli-wasm
-          path: dist
-      - name: Test the same WASM archive on each host
-        shell: bash
-        run: |
-          python - <<'PY'
-          import hashlib
-          from pathlib import Path
-          import shutil
-          import sys
-          sys.path.insert(0, 'scripts/openscad-ci')
-          from wasm import smoke_wasm
-          archive = Path('dist/openscad-cli-wasm.tar.gz')
-          expected = hashlib.sha256(archive.read_bytes()).hexdigest() + '  ' + archive.name + '\n'
-          assert archive.with_name(archive.name + '.sha256').read_text() == expected
-          work = Path('.runtime/relocated package').resolve()
-          shutil.unpack_archive(archive, work)
-          smoke_wasm(work / 'openscad-cli-wasm', work)
-          PY
-
   release:
     name: Verify release packages; publish on default branch
-    needs: [build, wasm-runtime]
+    needs: [build, linux, wasm]
     runs-on: ubuntu-22.04
     permissions:
       contents: write

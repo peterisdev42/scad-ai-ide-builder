@@ -8,7 +8,7 @@ import sys
 import tarfile
 import zipfile
 
-from build import ROOT, SOURCE_COMMIT, SOURCE_TAG, TARGETS, MODERN_SOURCE, package_name
+from build import ROOT, SOURCE_COMMIT, SOURCE_TAG, TARGETS, MODERN_SOURCE, package_name, LINUX_GLIBC_BASELINE
 from wasm import WASM_IMAGE, WASM_CAPABILITIES
 
 
@@ -35,6 +35,13 @@ def verify_assets(dist):
                     if stream.extractfile(name + "/bin/openscad.wasm").read(8) != b"\0asm\x01\0\0\0":
                         raise RuntimeError("Invalid WebAssembly binary")
         wasm = target == "wasm"
+        if target.startswith("linux"):
+            required = metadata.get("required_glibc", "")
+            if (metadata.get("libc") != "glibc" or metadata.get("minimum_glibc") != LINUX_GLIBC_BASELINE
+                    or metadata.get("linux_baseline") != "ubuntu-22.04"
+                    or not required or not all(part.isdigit() for part in required.split("."))
+                    or tuple(map(int, required.split("."))) > tuple(map(int, LINUX_GLIBC_BASELINE.split(".")))):
+                raise RuntimeError(f"Unexpected Linux ABI metadata: {archive}")
         if (metadata["commit"] != SOURCE_COMMIT or metadata["target"] != target
                 or metadata.get("tag") != SOURCE_TAG
                 or (MODERN_SOURCE and not metadata.get("manifold"))
@@ -54,8 +61,9 @@ RELEASE_TITLE = f"OpenSCAD CLI {VERSION}"
 DOWNLOADS = (
     ("macOS", "Apple Silicon", "macos-arm64"),
     ("macOS", "Intel x64", "macos-x64"),
-    ("Windows", "ARM64", "windows-arm64"),
     ("Windows", "x64", "windows-x64"),
+    ("Linux (glibc)", "x64", "linux-x64"),
+    ("Linux (glibc)", "ARM64", "linux-arm64"),
     ("Node.js / WASM", "Portable wasm32", "wasm"),
 )
 
@@ -80,15 +88,18 @@ def release_notes(repository):
     return "\n".join(lines) + (
         f"\n\nNative OpenSCAD `{VERSION}` · `HEADLESS=ON` · `NULLGL=OFF`. "
         f"OpenGL, OpenCSG, CGAL{', Manifold' if MODERN_SOURCE else ''} enabled; "
-        "Qt GUI and optional 3MF I/O disabled. "
-        "macOS uses native offscreen OpenGL; Windows bundles Mesa softpipe.\n\n"
+        "Qt GUI disabled. 3MF I/O is enabled on Linux and disabled on macOS/Windows. "
+        "macOS uses native offscreen OpenGL; Windows bundles Mesa softpipe. "
+        "Linux targets glibc 2.35+ and uses the host GL/GLX stack; "
+        "headless PNG rendering also requires Xvfb and xauth.\n\n"
         "WASM is a portable Node.js 22+ geometry fallback (`HEADLESS=ON`, `NULLGL=ON`), "
         f"with CGAL{' and Manifold' if MODERN_SOURCE else ''}. "
         "OpenGL/OpenCSG PNG preview, Cairo/PDF and 3MF I/O are unavailable in WASM. "
         "Run `node bin/openscad.mjs` after extracting the complete WASM archive. "
-        "Windows x86 is no longer built.\n\n"
-        "All third-party runtime dependencies are bundled. Extract the complete archive "
-        "and run `bin/openscad` (macOS) or `bin/openscad.exe` (Windows).\n"
+        "\n\n"
+        "Extract the complete archive and run `bin/openscad` (macOS/Linux) "
+        "or `bin/openscad.exe` (Windows). Linux bundles non-system dependencies "
+        "including libstdc++; glibc, the loader and graphics drivers come from the host.\n"
     )
 
 
