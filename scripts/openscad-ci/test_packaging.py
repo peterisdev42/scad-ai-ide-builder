@@ -15,7 +15,7 @@ from build import (ROOT, SOURCE_COMMIT, SOURCE_TAG, TARGETS, NATIVE_TARGETS, che
                    patch_source, patch_legacy_source, patch_modern_source, MODERN_SOURCE, package_name, verify_runtime_dependencies)
 from build import smoke_test, copy_windows_runtime
 from release import verify_assets, release_assets, release_notes, publish, RELEASE_TAG
-from wasm import WASM_IMAGE, WASM_CAPABILITIES, patch_wasm_source
+from wasm import WASM_IMAGE, WASM_CAPABILITIES
 
 
 class PackagingTests(unittest.TestCase):

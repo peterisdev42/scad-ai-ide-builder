@@ -8,6 +8,7 @@ import re
 import shutil
 import subprocess
 import sys
+import urllib.request
 
 from build import (ROOT, HERE, SOURCE_TAG, SOURCE_COMMIT, SOURCE_VERSION, MODERN_SOURCE,
                    archive_source, output, patch_legacy_source, replace_once, run)
@@ -31,6 +32,13 @@ def patch_wasm_source(source):
         text = replace_once(text, "['ENV','ERRNO_CODES','FS','PATH','callMain']",
                             "['ENV','ERRNO_CODES','FS','NODEFS','PATH','callMain']")
         path.write_text(text)
+        # Upstream's web build searches for resources in the current directory.
+        # A CLI must preserve cwd for user imports and find its own resources
+        # relative to argv[0], just like the native executable.
+        path = source / "src/openscad.cc"
+        path.write_text(replace_once(path.read_text(),
+            "const auto applicationPath = boost::dll::fs::current_path();",
+            "const auto applicationPath = fs::path(argv[0]).parent_path().generic_string();"))
     else:
         patch_legacy_source(source)
         shutil.copy2(HERE / "wasm-dependencies.cmake", source / "ci-dependencies.cmake")
@@ -63,6 +71,18 @@ def stage_wasm(source, build, work):
     resources.mkdir(parents=True)
     for directory in ("libraries", "fonts", "color-schemes", "examples"):
         shutil.copytree(source / directory, resources / directory)
+    # Use CPython's pinned catalog compiler so packaging has no host gettext
+    # dependency (the native Windows path uses the same verified compiler).
+    compiler = work / "msgfmt.py"
+    urllib.request.urlretrieve(
+        "https://raw.githubusercontent.com/python/cpython/v3.11.14/Tools/i18n/msgfmt.py", compiler)
+    if hashlib.sha256(compiler.read_bytes()).hexdigest() != "79c83d2646e7cf742226b52c989431cea1b08749adbb599fba001bb0203efe1f":
+        raise RuntimeError("CPython msgfmt checksum mismatch")
+    for line in (source / "locale/LINGUAS").read_text().splitlines():
+        for language in line.split("#", 1)[0].split():
+            messages = resources / "locale" / language / "LC_MESSAGES"
+            messages.mkdir(parents=True)
+            run(sys.executable, compiler, "-o", messages / "openscad.mo", source / "locale" / (language + ".po"))
     (resources / "fonts/fonts.conf").write_text(
         '<?xml version="1.0"?><fontconfig><dir prefix="relative">.</dir></fontconfig>\n')
     shutil.copy2(source / "COPYING", package / "COPYING")
@@ -137,7 +157,7 @@ def smoke_wasm(package, work):
         if failure.returncode == 0:
             raise RuntimeError("WASM CLI masked a model error")
     content = (test / "smoke.log").read_text()
-    if re.search(r"ERROR:|WARNING: Can't open|WARNING: Ignoring unknown module|Fontconfig error|Can't initialize fontconfig", content):
+    if re.search(r"ERROR:|WARNING: Can't open|WARNING: Ignoring unknown module|Fontconfig error|Can't initialize fontconfig|Could not initialize localization", content):
         raise RuntimeError("WASM smoke test reported a resource or geometry error")
     print(content, flush=True)
 

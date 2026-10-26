@@ -29,6 +29,8 @@ class WasmTests(unittest.TestCase):
                 self.assertIn('option(ENABLE_CGAL "Enable CGAL." ON)', cmake)
                 self.assertIn('option(ENABLE_MANIFOLD "Enable Manifold." ON)', cmake)
                 self.assertNotIn('/ENTRY:wmainCRTStartup', cmake)
+                self.assertIn('fs::path(argv[0]).parent_path().generic_string()',
+                              (source / 'src/openscad.cc').read_text())
             else:
                 self.assertIn('CGAL::CGAL', (source / 'ci-dependencies.cmake').read_text())
                 self.assertNotIn('OpenGL REQUIRED', (source / 'ci-dependencies.cmake').read_text())

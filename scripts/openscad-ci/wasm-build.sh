@@ -6,7 +6,7 @@ source_dir=/workspace/.build/wasm/source
 build_dir=/workspace/.build/wasm/build
 options=(-DCMAKE_BUILD_TYPE=Release -DHEADLESS=ON -DNULLGL=ON -DINFO=OFF
          -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
-         -DCMAKE_C_COMPILER_LAUNCHER=ccache)
+         -DCMAKE_C_COMPILER_LAUNCHER=ccache "-DCMAKE_EXE_LINKER_FLAGS=-fexceptions -sSTACK_SIZE=8MB")
 if [[ "$OPENSCAD_TAG" == openscad-2021.01 ]]; then
     # CGAL is header-only. Use the same 5.5.1 API as the native legacy builds,
     # retaining the image's WASM GMP/MPFR/Boost binary dependencies.

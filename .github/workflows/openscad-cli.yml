@@ -89,9 +89,11 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           brew install bison flex pkg-config autoconf autoconf-archive automake libtool ccache gettext
-          echo "$(brew --prefix bison)/bin" >> "$GITHUB_PATH"
-          echo "$(brew --prefix flex)/bin" >> "$GITHUB_PATH"
-          echo "$(brew --prefix gettext)/bin" >> "$GITHUB_PATH"
+          {
+            echo "$(brew --prefix bison)/bin"
+            echo "$(brew --prefix flex)/bin"
+            echo "$(brew --prefix gettext)/bin"
+          } >> "$GITHUB_PATH"
           echo "ACLOCAL_PATH=$(brew --prefix)/share/aclocal" >> "$GITHUB_ENV"
       - name: Initialize Windows compiler environment
         if: runner.os == 'Windows'
