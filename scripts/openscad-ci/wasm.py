@@ -56,6 +56,8 @@ target_link_options(OpenSCAD PRIVATE
         path.write_text(text)
         path = source / "src/FileModule.cc"
         path.write_text(replace_once(path.read_text(), "fs::is_regular(path)", "fs::is_regular_file(path)"))
+        path = source / "src/Geometry.h"
+        path.write_text(replace_once(path.read_text(), "#pragma once", "#pragma once\n#include <cassert>"))
 
 
 def stage_wasm(source, build, work):
@@ -135,7 +137,7 @@ def smoke_wasm(package, work):
         def execute(*args):
             try:
                 result = run(*command, *args, cwd=test, env=env, stdout=subprocess.PIPE,
-                             stderr=subprocess.STDOUT, text=True)
+                             stderr=subprocess.STDOUT, text=True, timeout=120)
             except subprocess.CalledProcessError as error:
                 log.write(error.stdout or "")
                 log.flush()
@@ -155,6 +157,14 @@ def smoke_wasm(package, work):
             # Validate real STL triangles, rather than accepting any nonempty file.
             if not data.startswith(b"solid") or not re.search(rb"facet normal\s+[-0-9.e+]+", data):
                 raise RuntimeError(f"Invalid ASCII STL from {backend}")
+        # The combined model would still contain triangles if text() silently
+        # lost its fonts. Require a font-only extrusion to produce geometry.
+        text_model = test / "text.scad"
+        text_model.write_text('linear_extrude(1) text("CLI",font="Liberation Sans",size=3);\n')
+        text_stl = test / "text.stl"
+        execute("--export-format", "asciistl", "-o", text_stl, text_model)
+        if not re.search(rb"facet normal\s+[-0-9.e+]+", text_stl.read_bytes()):
+            raise RuntimeError("WASM text() did not produce geometry with bundled fonts")
         # A failed model must propagate a nonzero exit to the caller.
         invalid = test / "invalid.scad"
         invalid.write_text("cube( ;\n")
