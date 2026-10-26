@@ -62,8 +62,8 @@ DOWNLOADS = (
     ("macOS", "Apple Silicon", "macos-arm64"),
     ("macOS", "Intel x64", "macos-x64"),
     ("Windows", "x64", "windows-x64"),
-    ("Linux (glibc)", "x64", "linux-x64"),
-    ("Linux (glibc)", "ARM64", "linux-arm64"),
+    ("Linux", "x64", "linux-x64"),
+    ("Linux", "ARM64", "linux-arm64"),
     ("Node.js / WASM", "Portable wasm32", "wasm"),
 )
 
