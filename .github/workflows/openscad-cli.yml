@@ -19,7 +19,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: openscad-cli-${{ github.ref }}
+  group: openscad-cli-${{ github.ref }}-${{ inputs.source_tag || 'openscad-2026.10-TEST4' }}
   cancel-in-progress: true
 
 env:
@@ -53,7 +53,6 @@ jobs:
           - { target: macos-x64, runner: macos-26-intel, triplet: x64-osx }
           - { target: macos-arm64, runner: macos-latest, triplet: arm64-osx }
           - { target: windows-x64, runner: windows-2022, triplet: x64-windows, arch: x64 }
-          - { target: windows-x86, runner: windows-2022, triplet: x86-windows, arch: x86 }
           - { target: windows-arm64, runner: windows-11-arm, triplet: arm64-windows, arch: arm64 }
     steps:
       - uses: actions/checkout@v5
@@ -90,9 +89,11 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           brew install bison flex pkg-config autoconf autoconf-archive automake libtool ccache gettext
-          echo "$(brew --prefix bison)/bin" >> "$GITHUB_PATH"
-          echo "$(brew --prefix flex)/bin" >> "$GITHUB_PATH"
-          echo "$(brew --prefix gettext)/bin" >> "$GITHUB_PATH"
+          {
+            echo "$(brew --prefix bison)/bin"
+            echo "$(brew --prefix flex)/bin"
+            echo "$(brew --prefix gettext)/bin"
+          } >> "$GITHUB_PATH"
           echo "ACLOCAL_PATH=$(brew --prefix)/share/aclocal" >> "$GITHUB_ENV"
       - name: Initialize Windows compiler environment
         if: runner.os == 'Windows'
@@ -151,11 +152,98 @@ jobs:
             .build/**/CMakeCache.txt
           if-no-files-found: ignore
 
+  wasm:
+    name: wasm
+    needs: validate
+    runs-on: ubuntu-22.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/checkout@v5
+        with:
+          repository: peterisdev42/openscad
+          ref: ${{ env.OPENSCAD_TAG }}
+          path: sources/openscad
+          submodules: recursive
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - uses: actions/cache/restore@v5
+        id: wasm-cache
+        with:
+          path: .build/wasm-ccache
+          key: openscad-wasm-v1-${{ env.OPENSCAD_TAG }}-${{ hashFiles('scripts/openscad-ci/wasm*') }}-${{ github.run_id }}
+          restore-keys: openscad-wasm-v1-${{ env.OPENSCAD_TAG }}-
+      - name: Build pinned WASM and test relocated Node package
+        run: python scripts/openscad-ci/wasm.py
+      - uses: actions/cache/save@v5
+        if: always()
+        with:
+          path: .build/wasm-ccache
+          key: ${{ steps.wasm-cache.outputs.cache-primary-key }}
+      - uses: actions/upload-artifact@v6
+        with:
+          name: openscad-cli-wasm
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 14
+      - name: Upload WASM diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: logs-wasm
+          include-hidden-files: true
+          path: |
+            dist/*
+            .build/wasm/**/*.log
+            .build/wasm/**/CMakeCache.txt
+          if-no-files-found: ignore
+
+  wasm-runtime:
+    name: WASM runtime (${{ matrix.runner }})
+    needs: wasm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-22.04, macos-26-intel, macos-latest, windows-2022, windows-11-arm]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - uses: actions/download-artifact@v7
+        with:
+          name: openscad-cli-wasm
+          path: dist
+      - name: Test the same WASM archive on each host
+        shell: bash
+        run: |
+          python - <<'PY'
+          import hashlib
+          from pathlib import Path
+          import shutil
+          import sys
+          sys.path.insert(0, 'scripts/openscad-ci')
+          from wasm import smoke_wasm
+          archive = Path('dist/openscad-cli-wasm.tar.gz')
+          expected = hashlib.sha256(archive.read_bytes()).hexdigest() + '  ' + archive.name + '\n'
+          assert archive.with_name(archive.name + '.sha256').read_text() == expected
+          work = Path('.runtime/relocated package').resolve()
+          shutil.unpack_archive(archive, work)
+          smoke_wasm(work / 'openscad-cli-wasm', work)
+          PY
+
   release:
-    name: Publish GitHub Release
-    needs: build
-    # Publishing is restricted to the default branch; other branches can build artifacts.
-    if: github.ref_name == github.event.repository.default_branch
+    name: Verify release packages; publish on default branch
+    needs: [build, wasm-runtime]
     runs-on: ubuntu-22.04
     permissions:
       contents: write
@@ -169,6 +257,8 @@ jobs:
       - name: Verify release assets and prepare notes
         run: python3 scripts/openscad-ci/release.py
       - name: Publish all verified packages
+        # Branch builds exercise the full package gate without publishing.
+        if: github.ref_name == github.event.repository.default_branch
         env:
           GH_TOKEN: ${{ github.token }}
         run: python3 scripts/openscad-ci/release.py --publish

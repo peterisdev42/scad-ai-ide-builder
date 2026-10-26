@@ -9,6 +9,7 @@ import tarfile
 import zipfile
 
 from build import ROOT, SOURCE_COMMIT, SOURCE_TAG, TARGETS, MODERN_SOURCE, package_name
+from wasm import WASM_IMAGE, WASM_CAPABILITIES
 
 
 def verify_assets(dist):
@@ -26,11 +27,24 @@ def verify_assets(dist):
         else:
             with tarfile.open(archive) as stream:
                 metadata = json.load(stream.extractfile(name + "/build-info.json"))
+                if target == "wasm":
+                    for file in ("bin/openscad.mjs", "bin/openscad-core.mjs", "bin/openscad.wasm"):
+                        member = stream.getmember(name + "/" + file)
+                        if not member.isfile() or member.size == 0:
+                            raise RuntimeError(f"Invalid WASM runtime file: {file}")
+                    if stream.extractfile(name + "/bin/openscad.wasm").read(8) != b"\0asm\x01\0\0\0":
+                        raise RuntimeError("Invalid WebAssembly binary")
+        wasm = target == "wasm"
         if (metadata["commit"] != SOURCE_COMMIT or metadata["target"] != target
                 or metadata.get("tag") != SOURCE_TAG
                 or (MODERN_SOURCE and not metadata.get("manifold"))
                 or metadata.get("asan", False)
-                or not metadata["headless"] or not metadata["opengl"] or metadata["nullgl"]):
+                or not metadata["headless"]
+                or metadata["opengl"] != (not wasm) or metadata["nullgl"] != wasm
+                or (wasm and (metadata.get("runtime") != "node"
+                              or metadata.get("node_min_version") != 22
+                              or metadata.get("wasm_image") != WASM_IMAGE
+                              or any(metadata.get(key) != value for key, value in WASM_CAPABILITIES.items())))):
             raise RuntimeError(f"Unexpected build metadata: {archive}")
 
 
@@ -42,7 +56,7 @@ DOWNLOADS = (
     ("macOS", "Intel x64", "macos-x64"),
     ("Windows", "ARM64", "windows-arm64"),
     ("Windows", "x64", "windows-x64"),
-    ("Windows", "x86", "windows-x86"),
+    ("Node.js / WASM", "Portable wasm32", "wasm"),
 )
 
 
@@ -64,10 +78,15 @@ def release_notes(repository):
         lines.append(f"| {system} | {architecture} | [{archive}]({base}{archive}) | "
                      f"[{archive}.sha256]({base}{archive}.sha256) |")
     return "\n".join(lines) + (
-        f"\n\nOpenSCAD `{VERSION}` · `HEADLESS=ON` · `NULLGL=OFF`. "
+        f"\n\nNative OpenSCAD `{VERSION}` · `HEADLESS=ON` · `NULLGL=OFF`. "
         f"OpenGL, OpenCSG, CGAL{', Manifold' if MODERN_SOURCE else ''} enabled; "
         "Qt GUI and optional 3MF I/O disabled. "
         "macOS uses native offscreen OpenGL; Windows bundles Mesa softpipe.\n\n"
+        "WASM is a portable Node.js 22+ geometry fallback (`HEADLESS=ON`, `NULLGL=ON`), "
+        f"with CGAL{' and Manifold' if MODERN_SOURCE else ''}. "
+        "OpenGL/OpenCSG PNG preview, Cairo/PDF and 3MF I/O are unavailable in WASM. "
+        "Run `node bin/openscad.mjs` after extracting the complete WASM archive. "
+        "Windows x86 is no longer built.\n\n"
         "All third-party runtime dependencies are bundled. Extract the complete archive "
         "and run `bin/openscad` (macOS) or `bin/openscad.exe` (Windows).\n"
     )

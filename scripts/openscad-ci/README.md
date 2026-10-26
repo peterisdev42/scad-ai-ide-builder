@@ -1,21 +1,21 @@
 # OpenSCAD 无头 CLI
 
-构建 macOS 和 Windows 的原生架构：
+构建四种 macOS / Windows 原生目标，以及一套跨平台 Node.js WASM 几何回退包：
 
 | 目标 | Runner | 包格式 |
 | --- | --- | --- |
 | Intel x64 | `macos-26-intel` | `.tar.gz` |
 | Apple Silicon ARM64 | `macos-latest`（目前为 macOS 26） | `.tar.gz` |
 | Windows x64 | `windows-2022` | `.zip` |
-| Windows x86 | `windows-2022` | `.zip` |
 | Windows ARM64 | `windows-11-arm` | `.zip` |
+| WASM（Node.js 22+） | `ubuntu-22.04` 构建，五种宿主验收 | `.tar.gz` |
 
-Linux 暂不参与构建。Windows x64/x86 使用 VS 2022，ARM64 使用 VS 2026 中的 v143 14.44 工具集，随包提供原生 Mesa 24.3.4 softpipe 和 MSVC 运行库。
+Linux 暂不提供原生包，可使用系统 OpenSCAD 或 WASM 回退。Windows x86 不再构建，专用 ASan/复查工作流已移除。Windows x64 使用 VS 2022，ARM64 使用 VS 2026 中的 v143 14.44 工具集，随包提供原生 Mesa 24.3.4 softpipe 和 MSVC 运行库。
 Windows 使用 `bin/openscad.exe`，其余参数与 macOS 相同。
 工作流为 `.github/workflows/openscad-cli.yml`（**Package OpenSCAD CLI**）。
 默认分支修改工作流或 `scripts/openscad-ci/` 后自动构建 `openscad-2026.10-TEST4`。
 手动 Run workflow 可通过 `source_tag` 选择 `openscad-2026.10-TEST4` 或 `openscad-2021.01`。
-其他分支只上传 Actions artifacts；默认分支五种目标均通过后，创建或更新
+其他分支只上传 Actions artifacts；默认分支四种原生目标、WASM 构建及五种宿主 WASM 验收均通过后，创建或更新
 与所选源码版本对应的 `openscad-cli-<version>` GitHub Release，标题为 `OpenSCAD CLI <version>`，同名附件会被替换。
 使用仓库内置 `GITHUB_TOKEN`，发布 job 具有 `contents: write` 权限。
 创建 Release 时以默认分支名为目标，避免构建期间分支前进后，对旧工作流提交创建标签触发 403。
@@ -23,7 +23,7 @@ Release 标签作为下载入口；实际构建脚本提交以每个包内的 `b
 同一分支有新提交时，自动取消旧轮次，只验证最新版本。
 
 发布文件名为 `openscad-cli-macos-{arm64,x86_64}.tar.gz` 和
-`openscad-cli-windows-{arm64,x86_64,x86}.zip`。macOS 不提供 x86（32 位）包。
+`openscad-cli-windows-{arm64,x86_64}.zip`，另有 `openscad-cli-wasm.tar.gz`。不提供 32 位原生包。
 
 ## 固定源码和依赖
 
@@ -90,7 +90,7 @@ MSVC CRT 版本匹配编译工具集，按照实际导入递归收集，避免�
 4. TEST4 使用中文文件名验证参数编码，额外导出 Manifold 渲染 PNG，验证新后端。
 5. `--info` 确认离屏 OpenGL 可用，无资源丢失或渲染错误。
 
-五种包全部通过后，Release 校验其 SHA-256 和构建元数据，仅发布五种二进制包及其逐包 SHA256 校验文件，共 10 个附件。
+四种原生包与 WASM 包全部通过后，Release 校验其 SHA-256 和构建元数据，仅发布五种运行时包及其逐包 SHA256 校验文件，共 10 个附件。
 发布步骤不生成或上传源码压缩包。
 正文提供五种目标的下载和 SHA256 链接表格，链接文字使用对应 Assets 文件名，并附简要构建参数说明。
 最低系统版本尚未经过可靠验证，因此不列 Compatibility 字段。
@@ -115,18 +115,41 @@ python3 -m unittest discover -s scripts/openscad-ci -p 'test_*.py' -v
 
 完整编译、动态库重定位和 OpenGL 验收以各原生 GitHub runner 的运行结果为准。
 
-## Windows x86 内存诊断
+## WASM 几何回退
 
-`Diagnose OpenSCAD Windows x86` 是单独手动触发的 ASan 工作流，仅生成诊断 artifact，
-不创建 Release。诊断包带 `asan: true` 元数据，发布校验会拒绝这类包。
-普通打包失败时也保留已生成的归档，便于复现，无需反复重新编译。
-诊断通过 CMake 的 `*_FLAGS_INIT` 追加 ASan 参数，保留 MSVC 默认的异常处理等选项。
-为与未插桩的缓存静态依赖保持一致，关闭 MSVC 的 `vector` / `string` 容器标注；
-保留 ASan 的堆越界和释放后访问检测，但不检测容器已分配容量内的逻辑越界。
-这是 [MSVC 对混合静态依赖的要求](https://learn.microsoft.com/en-us/cpp/sanitizers/error-container-overflow)。
-动态依赖未插桩，因此沿用 Windows ASan 默认的分配器类型检查设置。
-复查工作流附带合法跨 DLL `new/delete` 的最小实验：在此工具链中强制
-`alloc_dealloc_mismatch=1` 会对该实验误报。`asan_options` 可显式选择其他运行时诊断配置。
-填写诊断工作流的 `package_run_id` 可复用该次运行的诊断包，重新执行完整搬移验收；
-无需再次编译。`context_provider` 可对比上游支持的 `wgl` 和 `wgl-old` 离屏上下文。
-复查仍校验源码版本、架构、运行库和所有输出，日志与输出文件保存在单独 artifact 中。
+WASM 与原生包使用相同的所选 tag/SHA，支持 2021.01 和 2026.10-TEST4。
+使用 OpenSCAD 官方 `wasm-base` 镜像并固定 SHA256 digest（见 `wasm.py`），
+其中提供 Emscripten 4.0.10 和已交叉编译的依赖；不使用浮动 `latest`。
+2021.01 额外固定 CGAL 5.5.1 头文件并使用与原生旧版一致的 API 兼容补丁。
+TEST4 保留上游 Emscripten 构建分支，启用 CGAL 和 Manifold；不混用原生 Windows/macOS 补丁。
+
+WASM 采用上游 `HEADLESS=ON` / `NULLGL=ON` 策略：支持几何导出、MCAD、文字与字体，
+不提供 OpenGL/OpenCSG PNG 预览、Cairo/PDF 或 3MF。Manifold 采用单线程模式。
+这与原生包 `NULLGL=OFF` 的完整离屏渲染定位不同，包内 `build-info.json` 明确记录能力。
+同一 WASM 归档在 Linux x64、macOS x64/ARM64、Windows x64/ARM64 的 Node.js 22 下运行验收。
+它是宿主无原生 CLI 时的可选回退产物，本次不修改 VSCode 插件的运行时选择逻辑。
+
+完整解压（包括 `bin` 与 `share`）后执行：
+
+```sh
+node bin/openscad.mjs --version
+node bin/openscad.mjs -o model.stl model.scad
+# TEST4 可明确选择后端
+node bin/openscad.mjs --backend=Manifold -o model.stl model.scad
+```
+
+需要宿主提供 Node.js 22 或更新版本；包内不重复捆绑各架构 Node。
+入口映射当前工作目录、绝对输入/输出路径和 `OPENSCADPATH` / `OPENSCAD_FONT_PATH` 到 NodeFS，
+因此 `.wasm` 本身不依赖宿主 CPU 架构。SCAD 源码中的绝对宿主路径需改为相对路径或传入映射后的虚拟路径。
+建议以 `node` 可执行文件与 `bin/openscad.mjs` 启动前缀集成，单独启动进程以支持取消和退出码隔离。
+
+构建命令（Linux amd64、Docker、Python 3.11、Node.js 22）：
+
+```sh
+python scripts/openscad-ci/wasm.py
+```
+
+WASM 验收使用实际归档的新解压目录，隐藏源码与构建目录，清理环境中的外部库/字体路径，
+检查版本、中文输入文件名、相对 `use`、MCAD、布尔运算、文字字体以及 CGAL/Manifold 的 ASCII STL。
+还检查错误模型返回非零退出码。发布门禁独立检查 WASM 文件头、JS 加载文件及能力元数据，
+不会为 WASM 放宽原生包必须具备 OpenGL 的要求。
