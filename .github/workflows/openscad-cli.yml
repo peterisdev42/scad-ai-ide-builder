@@ -197,6 +197,7 @@ jobs:
           name: logs-wasm
           include-hidden-files: true
           path: |
+            dist/*
             .build/wasm/**/*.log
             .build/wasm/**/CMakeCache.txt
           if-no-files-found: ignore

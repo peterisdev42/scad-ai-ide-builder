@@ -1,6 +1,10 @@
 # 2021.01 does not yet have upstream Emscripten CMake support. Keep its
 # geometry/font/import dependencies, but use the upstream WASM NULLGL policy.
 find_package(CGAL REQUIRED)
+# CGAL 5.5's config resets Boost_USE_STATIC_LIBS to OFF; set the image's
+# static-only selection after CGAL, rather than relying on a cache variable.
+set(Boost_USE_STATIC_LIBS ON)
+set(Boost_USE_STATIC_RUNTIME ON)
 find_package(Boost REQUIRED COMPONENTS filesystem system regex program_options)
 find_package(Eigen3 CONFIG REQUIRED)
 find_package(Freetype REQUIRED)
