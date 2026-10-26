@@ -8,14 +8,14 @@
 | Apple Silicon ARM64 | `macos-latest`（目前为 macOS 26） | `.tar.gz` |
 | Windows x64 | `windows-2022` | `.zip` |
 | Windows ARM64 | `windows-11-arm` | `.zip` |
-| WASM（Node.js 22+） | `ubuntu-22.04` 构建，五种宿主验收 | `.tar.gz` |
+| WASM（Node.js 22+） | `ubuntu-22.04` | `.tar.gz` |
 
 Linux 暂不提供原生包，可使用系统 OpenSCAD 或 WASM 回退。Windows x86 不再构建，专用 ASan/复查工作流已移除。Windows x64 使用 VS 2022，ARM64 使用 VS 2026 中的 v143 14.44 工具集，随包提供原生 Mesa 24.3.4 softpipe 和 MSVC 运行库。
 Windows 使用 `bin/openscad.exe`，其余参数与 macOS 相同。
 工作流为 `.github/workflows/openscad-cli.yml`（**Package OpenSCAD CLI**）。
 默认分支修改工作流或 `scripts/openscad-ci/` 后自动构建 `openscad-2026.10-TEST4`。
 手动 Run workflow 可通过 `source_tag` 选择 `openscad-2026.10-TEST4` 或 `openscad-2021.01`。
-其他分支只上传 Actions artifacts；默认分支四种原生目标、WASM 构建及五种宿主 WASM 验收均通过后，创建或更新
+其他分支只上传 Actions artifacts；默认分支四种原生目标和 WASM 打包均通过后，创建或更新
 与所选源码版本对应的 `openscad-cli-<version>` GitHub Release，标题为 `OpenSCAD CLI <version>`，同名附件会被替换。
 使用仓库内置 `GITHUB_TOKEN`，发布 job 具有 `contents: write` 权限。
 创建 Release 时以默认分支名为目标，避免构建期间分支前进后，对旧工作流提交创建标签触发 403。
@@ -126,7 +126,7 @@ TEST4 保留上游 Emscripten 构建分支，启用 CGAL 和 Manifold；不混�
 WASM 采用上游 `HEADLESS=ON` / `NULLGL=ON` 策略：支持几何导出、MCAD、文字与字体，
 不提供 OpenGL/OpenCSG PNG 预览、Cairo/PDF 或 3MF。Manifold 采用单线程模式。
 这与原生包 `NULLGL=OFF` 的完整离屏渲染定位不同，包内 `build-info.json` 明确记录能力。
-同一 WASM 归档在 Linux x64、macOS x64/ARM64、Windows x64/ARM64 的 Node.js 22 下运行验收。
+WASM 只运行一个打包任务，在 `ubuntu-22.04` 内完成编译、归档与基础可运行检查；任一步失败即打包失败。
 它是宿主无原生 CLI 时的可选回退产物，本次不修改 VSCode 插件的运行时选择逻辑。
 
 完整解压（包括 `bin` 与 `share`）后执行：
