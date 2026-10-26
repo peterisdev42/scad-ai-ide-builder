@@ -5,6 +5,7 @@ cmake --version
 source_dir=/workspace/.build/wasm/source
 build_dir=/workspace/.build/wasm/build
 options=(-DCMAKE_BUILD_TYPE=Release -DHEADLESS=ON -DNULLGL=ON -DINFO=OFF
+         -DBoost_USE_STATIC_LIBS=ON -DBoost_USE_STATIC_RUNTIME=ON
          -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
          -DCMAKE_C_COMPILER_LAUNCHER=ccache "-DCMAKE_EXE_LINKER_FLAGS=-fexceptions -sSTACK_SIZE=8MB")
 if [[ "$OPENSCAD_TAG" == openscad-2021.01 ]]; then

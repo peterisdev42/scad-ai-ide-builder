@@ -133,8 +133,14 @@ def smoke_wasm(package, work):
     command = [node, str(package / "bin/openscad.mjs")]
     with (test / "smoke.log").open("w") as log:
         def execute(*args):
-            result = run(*command, *args, cwd=test, env=env, stdout=subprocess.PIPE,
-                         stderr=subprocess.STDOUT, text=True)
+            try:
+                result = run(*command, *args, cwd=test, env=env, stdout=subprocess.PIPE,
+                             stderr=subprocess.STDOUT, text=True)
+            except subprocess.CalledProcessError as error:
+                log.write(error.stdout or "")
+                log.flush()
+                print((error.stdout or "")[-12000:], flush=True)
+                raise
             log.write(result.stdout)
             log.flush()
             return result.stdout
